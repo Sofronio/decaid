@@ -345,7 +345,7 @@ export default function createPlugin(host: PluginHost): PluginInstance {
       }
     },
 
-    __httpRequestHandler(request: HttpRequest): HttpResponse {
+    __httpRequestHandler(request: HttpRequest): HttpResponse | Promise<HttpResponse> {
       switch (request.endpoint) {
         case "ui":
           return renderSettingsPage(request);
