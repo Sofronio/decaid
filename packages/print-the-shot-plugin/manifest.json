@@ -1,0 +1,44 @@
+{
+  "id": "print-the-shot.reaplugin",
+  "author": "Sofronio Chen",
+  "name": "Print The Shot",
+  "description": "Upload shot data to a local server for printing or logging",
+  "version": "0.1.0",
+  "apiVersion": 1,
+  "permissions": ["http", "log", "api"],
+  "settings": {
+    "AutoUpload": {
+      "type": "boolean",
+      "description": "Upload shots automatically",
+      "default": true
+    },
+    "ServerUrl": {
+      "type": "string",
+      "description": "External server host:port"
+    },
+    "ServerEndpoint": {
+      "type": "string",
+      "description": "Upload endpoint path"
+    },
+    "UseHttp": {
+      "type": "boolean",
+      "description": "Use HTTP (uncheck for HTTPS)",
+      "default": true
+    },
+    "MachineName": {
+      "type": "string",
+      "description": "Machine identifier"
+    },
+    "MinSeconds": {
+      "type": "number",
+      "description": "Minimum shot duration to upload",
+      "default": 6
+    }
+  },
+  "api": [
+    { "id": "ui", "type": "http", "data": {} },
+    { "id": "upload", "type": "http", "data": {} },
+    { "id": "save-settings", "type": "http", "data": {} },
+    { "id": "debug", "type": "http", "data": {} }
+  ]
+}

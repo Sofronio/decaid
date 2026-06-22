@@ -34,6 +34,7 @@ class PluginManager {
   De1Controller? _de1controller;
   StreamSubscription<De1Interface?>? _de1Subscription;
   StreamSubscription<MachineSnapshot>? _snapshotSubscription;
+  StreamSubscription<void>? _shotsChangedSubscription;
 
   De1Controller? get de1Controller => _de1controller;
 
@@ -793,6 +794,16 @@ class PluginManager {
     });
   }
 
+  /// Listen for shot persistence events — the most reliable signal that a
+  /// shot has completed (shot data was just saved to the database).
+  set shotsChangedStream(Stream<void>? stream) {
+    _shotsChangedSubscription?.cancel();
+    if (stream == null) return;
+    _shotsChangedSubscription = stream.listen((_) {
+      broadcastEvent('shotCompleted', {});
+    });
+  }
+
   Future<void> _handleFetch(Map<String, dynamic> msg) async {
     final int id = msg['id'];
     final String url = msg['url'];
@@ -811,11 +822,13 @@ class PluginManager {
       });
 
       if (body != null) {
-        if (body is String) {
-          request.add(utf8.encode(body));
-        } else {
-          request.add(utf8.encode(jsonEncode(body)));
-        }
+        final bytes =
+            body is String ? utf8.encode(body) : utf8.encode(jsonEncode(body));
+        // Set content-length so Dart uses a plain body instead of chunked
+        // transfer encoding. Embedded servers (ESP32, etc.) often reject
+        // chunked requests.
+        request.contentLength = bytes.length;
+        request.add(bytes);
       }
 
       final response = await request.close();
@@ -843,12 +856,9 @@ class PluginManager {
       // );
       js.executePendingJob();
     } catch (e) {
-      js.sendMessage(
-        channelName: "__fetchResponse__",
-        args: [
-          jsonEncode({'id': id, 'error': e.toString()}),
-        ],
-      );
+      js.evaluate('''
+        __handleFetchResponse(${jsonEncode({'id': id, 'error': e.toString()})});
+      ''');
       js.executePendingJob();
     }
   }

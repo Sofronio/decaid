@@ -57,6 +57,9 @@ app.*.map.json
 # DYE2 plugin build output
 assets/plugins/dye2.reaplugin/
 
+# Print The Shot plugin build output
+assets/plugins/print-the-shot.reaplugin/
+
 # Skin bundling
 .skin_cache/
 assets/bundled_skins/

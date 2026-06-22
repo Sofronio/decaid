@@ -448,6 +448,8 @@ void main(List<String> args) async {
   // Don't initialize plugins yet - wait for permissions to be granted
   // pluginService.initialize() will be called from PermissionsView after permissions are granted
   pluginService.pluginManager.de1Controller = de1Controller;
+  pluginService.pluginManager.shotsChangedStream =
+      persistenceController.shotsChanged;
 
   BatteryController? batteryController;
   if (Platform.isAndroid || Platform.isIOS) {

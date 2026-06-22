@@ -1,0 +1,16 @@
+{
+  "name": "@streamline/print-the-shot-plugin",
+  "version": "1.2.0",
+  "private": true,
+  "description": "Print The Shot plugin for uploading shot data to external servers",
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite build --watch",
+    "serve": "node dev-server.mjs"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.2",
+    "vite": "^8.0.8"
+  }
+}
