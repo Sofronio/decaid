@@ -572,6 +572,35 @@ A genuinely newer pending update is kept.
 Trusting a repository is not the same as trusting a new permission, so this
 holds regardless of where the plugin came from.
 
+### Frontend-driven plugins
+
+A plugin's `plugin.js` runs in the app's `flutter_js` runtime and cannot touch
+the DOM. For features whose logic belongs in a browser page (upload
+orchestration, printing, log viewers), keep the backend thin and drive the page:
+
+1. The plugin declares an `http` endpoint (`ui`) that returns a full HTML page
+   string, and a `websocket` endpoint (`events`).
+2. The page is served at `http://<host>:8080/api/v1/plugins/<id>/ui` and opens
+   `ws://<host>:8080/ws/v1/plugins/<id>/events` built from `location.origin`
+   (the page is same-origin with the API server).
+3. The plugin's `onEvent` receives app events (e.g. `shotStored` with the shot
+   id, permission `events.shots`) and forwards them to the page with
+   `host.emit("events", {id})`; `_handlePluginSocketEndpoint` relays every emit
+   matching the endpoint name to connected sockets.
+4. The page calls the REST API directly (`GET /api/v1/shots/<id>`) and, for
+   anything a browser cannot do cross-origin (e.g. posting to a LAN server),
+   posts to a plugin `http` proxy endpoint whose `__httpRequestHandler` runs the
+   single `fetch` (Dart HttpClient has no CORS). Retries stay in the page so the
+   log viewer and status UI own the orchestration.
+5. Settings are declared in the manifest (rendered as a form in the app's
+   Plugins screen) and read/written from the page via
+   `GET/POST /api/v1/plugins/<id>/settings` — same store the app uses, so no
+   localStorage authority split.
+
+The page only runs while it is open (pinned WebView or a desktop browser).
+`print-the-shot.reaplugin` (in-tree source under `packages/print-the-shot-plugin/`)
+follows this pattern.
+
 ## Plugin Lifecycle Management (REST API)
 
 Plugins can be managed via REST API:

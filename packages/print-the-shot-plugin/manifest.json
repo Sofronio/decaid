@@ -1,0 +1,78 @@
+{
+  "id": "print-the-shot.reaplugin",
+  "author": "Sofronio Chen",
+  "name": "Print The Shot",
+  "description": "Serves a page that transforms finished shots into the TCL print format and uploads them to a local print server (e.g. a Raspberry Pi running the PrintTheShot server). Keep the page open while pulling shots.",
+  "version": "1.3.0",
+  "apiVersion": 1,
+  "permissions": ["log", "api", "emit", "events.shots"],
+  "settings": {
+    "AutoUpload": {
+      "type": "boolean",
+      "label": "Auto upload",
+      "description": "Upload shots automatically when they finish while the page is open",
+      "default": true
+    },
+    "ServerUrl": {
+      "type": "string",
+      "label": "Server address",
+      "description": "Print server host and port, e.g. 192.168.1.20:8000"
+    },
+    "ServerEndpoint": {
+      "type": "string",
+      "label": "Upload path",
+      "description": "Path on the server that accepts the shot POST",
+      "default": "upload"
+    },
+    "UseHttp": {
+      "type": "boolean",
+      "label": "Use HTTP",
+      "description": "Use HTTP (uncheck for HTTPS)",
+      "default": true
+    },
+    "MachineName": {
+      "type": "string",
+      "label": "Machine name",
+      "description": "Identifier sent as machine_id to the server"
+    },
+    "MinSeconds": {
+      "type": "number",
+      "label": "Minimum shot length",
+      "description": "Skip shots shorter than this many seconds",
+      "default": 6
+    }
+  },
+  "api": [
+    {
+      "id": "ui",
+      "type": "http",
+      "data": {
+        "description": "Serves the print-the-shot page"
+      }
+    },
+    {
+      "id": "upload",
+      "type": "http",
+      "data": {
+        "description": "POST {url, shot} — proxies one upload attempt from the page (avoids browser CORS)"
+      }
+    },
+    {
+      "id": "debug",
+      "type": "http",
+      "data": {
+        "description": "GET plugin version and load status"
+      }
+    },
+    {
+      "id": "events",
+      "type": "websocket",
+      "data": {
+        "id": {
+          "type": "string",
+          "description": "Id of the newly stored shot"
+        }
+      }
+    }
+  ]
+}

@@ -1728,9 +1728,14 @@ class PluginManager {
       request.headers.set(k.toString(), v.toString());
     });
     if (body != null) {
-      request.add(
-        body is String ? utf8.encode(body) : utf8.encode(jsonEncode(body)),
-      );
+      final bytes = body is String
+          ? utf8.encode(body)
+          : utf8.encode(jsonEncode(body));
+      // Set content-length so Dart sends a plain body instead of chunked
+      // transfer encoding; some embedded servers (Python http.server, ESP32)
+      // read bodies by Content-Length and would see an empty request.
+      request.contentLength = bytes.length;
+      request.add(bytes);
     }
     final response = await request.close();
     final bytes = await response.fold<List<int>>([], (acc, chunk) {

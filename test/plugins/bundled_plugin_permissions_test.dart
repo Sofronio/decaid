@@ -38,6 +38,12 @@ void main() {
       PluginPermissions.eventsMachine,
       PluginPermissions.eventsShots,
     },
+    'print-the-shot.reaplugin': {
+      PluginPermissions.log,
+      PluginPermissions.api,
+      PluginPermissions.emit,
+      PluginPermissions.eventsShots,
+    },
   };
   const versionsBeforePermissionEnforcement = <String, String>{
     'time-to-ready.reaplugin': '1.0.2',
