@@ -23,6 +23,7 @@ export default function createPlugin(host: PluginHost): PluginInstance {
       if (event.name === "shotStored") {
         const id = (event.payload as { id?: unknown } | undefined)?.id;
         if (typeof id === "string") {
+          log("shotStored: " + id);
           host.emit("events", { id });
         }
       }

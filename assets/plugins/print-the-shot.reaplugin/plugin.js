@@ -946,7 +946,10 @@ customElements.define("print-the-shot", PrintTheShot);
 			onEvent(event) {
 				if (event.name === "shotStored") {
 					const id = event.payload?.id;
-					if (typeof id === "string") host.emit("events", { id });
+					if (typeof id === "string") {
+						log("shotStored: " + id);
+						host.emit("events", { id });
+					}
 				}
 			},
 			__httpRequestHandler(request) {
