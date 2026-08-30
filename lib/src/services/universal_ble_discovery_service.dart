@@ -492,7 +492,10 @@ class UniversalBleDiscoveryService extends BleDiscoveryService
 
     try {
       final name = device.name ?? '';
-      if (name.isEmpty) return;
+      if (name.isEmpty &&
+          !DeviceMatcher.advertisesKnownService(device.services)) {
+        return;
+      }
 
       if (_devices.containsKey(deviceId)) return;
 
@@ -501,6 +504,7 @@ class UniversalBleDiscoveryService extends BleDiscoveryService
         () => DeviceMatcher.match(
           transport: _createTransport(device),
           advertisedName: name,
+          advertisedServices: device.services,
         ),
       );
 
