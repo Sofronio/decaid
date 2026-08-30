@@ -322,8 +322,8 @@ class PrintTheShot extends HTMLElement {
   bindEvents() {
     this.$("#manual-upload").addEventListener("click", () => this.manualUpload());
     this.$("#print-current").addEventListener("click", () => this.printCurrent());
-    this.$("#prev-shot").addEventListener("click", () => this.stepShot(-1));
-    this.$("#next-shot").addEventListener("click", () => this.stepShot(1));
+    this.$("#prev-shot").addEventListener("click", () => this.stepShot(1));
+    this.$("#next-shot").addEventListener("click", () => this.stepShot(-1));
     this.$("#save-settings").addEventListener("click", () => this.saveSettings());
     this.$("#clear-logs").addEventListener("click", () => {
       this.logs = [];
@@ -354,14 +354,18 @@ class PrintTheShot extends HTMLElement {
   }
 
   async stepShot(dir) {
-    const target = Math.max(0, this.offset + dir);
+    const target = this.offset + dir;
+    if (target < 0) {
+      this.log("Already at the latest shot", "info");
+      return;
+    }
     try {
       const res = await fetch("/api/v1/shots?limit=1&offset=" + target);
       if (!res.ok) throw new Error("HTTP " + res.status);
       const data = await res.json();
       const items = data.items || [];
       if (items.length === 0) {
-        this.log(dir > 0 ? "No older shots" : "Already at the latest shot", "info");
+        this.log("No older shots", "info");
         return;
       }
       this.offset = target;
