@@ -1,4 +1,148 @@
 var createPlugin = (function() {
+	//#region src/api/transform.ts
+	function toTclFormat(shot) {
+		const ms = shot.measurements || [];
+		const elapsed = [];
+		const pressure = [];
+		const pressureGoal = [];
+		const flow = [];
+		const flowByWeight = [];
+		const flowGoal = [];
+		const basket = [];
+		const mix = [];
+		const tempGoal = [];
+		const weight = [];
+		const waterDispensed = [];
+		const stateChange = [];
+		let prevState = "";
+		let t0 = null;
+		for (const m0 of ms) {
+			const ss0 = m0.machine?.state?.substate || "";
+			if (ss0 !== "preinfusion" && ss0 !== "pouring") continue;
+			const ts0 = m0.machine?.timestamp;
+			if (ts0 != null) {
+				t0 = new Date(ts0).getTime();
+				break;
+			}
+		}
+		if (t0 == null) t0 = 0;
+		let lastScaleWeight = 0;
+		let lastScaleTime = 0;
+		let smoothedWeightChange = 0;
+		for (const item of ms) {
+			const m = item.machine || {};
+			const ss = m.state?.substate || "";
+			if (ss !== "preinfusion" && ss !== "pouring") continue;
+			const s = item.scale || {};
+			const mts = m.timestamp;
+			elapsed.push(mts != null ? ((new Date(mts).getTime() - t0) / 1e3).toFixed(1) : "0.0");
+			pressure.push(m.pressure != null ? m.pressure.toFixed(2) : "0.0");
+			pressureGoal.push(m.targetPressure != null ? m.targetPressure.toFixed(2) : "0.0");
+			flow.push(m.flow != null ? m.flow.toFixed(2) : "0.0");
+			flowGoal.push(m.targetFlow != null ? m.targetFlow.toFixed(2) : "0.0");
+			basket.push(m.groupTemperature != null ? m.groupTemperature.toFixed(2) : "0.0");
+			mix.push(m.mixTemperature != null ? m.mixTemperature.toFixed(2) : "0.0");
+			tempGoal.push(m.targetGroupTemperature != null ? m.targetGroupTemperature.toFixed(2) : "0.0");
+			let weightChange = 0;
+			if (s.weight != null) {
+				const scaleTs = s.timestamp;
+				if (scaleTs != null) {
+					const scaleTime = (new Date(scaleTs).getTime() - t0) / 1e3;
+					if (lastScaleTime > 0 && scaleTime > lastScaleTime) {
+						const timeDiff = scaleTime - lastScaleTime;
+						smoothedWeightChange = .1 * ((s.weight - lastScaleWeight) / timeDiff) + .9 * smoothedWeightChange;
+						weightChange = smoothedWeightChange;
+					}
+					lastScaleWeight = s.weight;
+					lastScaleTime = scaleTime;
+				}
+			}
+			flowByWeight.push(weightChange.toFixed(2));
+			weight.push(s.weight != null ? s.weight.toFixed(1) : "0.0");
+			waterDispensed.push(item.volume != null ? item.volume.toFixed(2) : "0.0");
+			const currState = (m.state?.state || "") + "/" + (m.state?.substate || "");
+			stateChange.push(currState !== prevState ? "10000000.0" : "0.0");
+			prevState = currState;
+		}
+		if (elapsed.length > 0) {
+			const et0 = parseFloat(elapsed[0]);
+			for (let j = 0; j < elapsed.length; j++) elapsed[j] = (parseFloat(elapsed[j]) - et0).toFixed(1);
+		}
+		const wf = shot.workflow || {};
+		const ctx = wf.context || {};
+		const prof = wf.profile || {};
+		const ann = shot.annotations || {};
+		const extras = shot.extras || {};
+		const scaleData = shot.scale || {};
+		const beanType = ctx.coffeeName || extras.bean_type || extras.beanType || scaleData.beanType || "";
+		const beanBrand = ctx.coffeeRoaster || extras.bean_brand || extras.beanBrand || extras.roaster || "";
+		return {
+			version: "2",
+			clock: String(Math.floor(Date.now() / 1e3)),
+			date: (/* @__PURE__ */ new Date()).toString(),
+			timestamp: String(Math.floor(Date.now() / 1e3)),
+			elapsed,
+			pressure: {
+				pressure,
+				goal: pressureGoal
+			},
+			flow: {
+				flow,
+				by_weight: flowByWeight,
+				goal: flowGoal
+			},
+			temperature: {
+				basket,
+				mix,
+				goal: tempGoal
+			},
+			totals: {
+				weight,
+				water_dispensed: waterDispensed
+			},
+			state_change: stateChange,
+			profile: {
+				title: prof.title || "Default",
+				author: prof.author || "Decent",
+				notes: prof.notes || "",
+				beverage_type: prof.beverage_type || "espresso",
+				tank_temperature: "0",
+				target_weight: ann.actualYield != null ? String(Math.round(ann.actualYield)) : "0",
+				target_volume: "0",
+				target_volume_count_start: String(prof.target_volume_count_start || 0),
+				version: "2"
+			},
+			meta: {
+				bean: {
+					brand: beanBrand,
+					type: beanType,
+					notes: ann.espressoNotes || prof.notes || "",
+					roast_level: extras.roast_level || extras.roastLevel || "",
+					roast_date: extras.roast_date || extras.roastDate || ""
+				},
+				shot: {
+					enjoyment: "0",
+					notes: "",
+					tds: "0",
+					ey: "0"
+				},
+				grinder: {
+					model: ctx.grinderModel || "",
+					setting: ctx.grinderSetting || ""
+				},
+				in: ann.actualDoseWeight != null ? String(ann.actualDoseWeight) : "0",
+				out: ann.actualYield != null ? String(ann.actualYield) : "0",
+				time: elapsed.length > 0 ? elapsed[elapsed.length - 1] : "0"
+			},
+			app: {
+				app_name: "Decent.app",
+				app_version: "1.0.0",
+				data: {}
+			}
+		};
+	}
+	var transformScript = `window.toTclFormat = (${toTclFormat.toString()});`;
+	//#endregion
 	//#region src/utils/html.ts
 	/**
 	* Tagged template literal for HTML strings.
@@ -782,150 +926,6 @@ class PrintTheShot extends HTMLElement {
 customElements.define("print-the-shot", PrintTheShot);
 `;
 	//#endregion
-	//#region src/api/transform.ts
-	function toTclFormat(shot) {
-		const ms = shot.measurements || [];
-		const elapsed = [];
-		const pressure = [];
-		const pressureGoal = [];
-		const flow = [];
-		const flowByWeight = [];
-		const flowGoal = [];
-		const basket = [];
-		const mix = [];
-		const tempGoal = [];
-		const weight = [];
-		const waterDispensed = [];
-		const stateChange = [];
-		let prevState = "";
-		let t0 = null;
-		for (const m0 of ms) {
-			const ss0 = m0.machine?.state?.substate || "";
-			if (ss0 !== "preinfusion" && ss0 !== "pouring") continue;
-			const ts0 = m0.machine?.timestamp;
-			if (ts0 != null) {
-				t0 = new Date(ts0).getTime();
-				break;
-			}
-		}
-		if (t0 == null) t0 = 0;
-		let lastScaleWeight = 0;
-		let lastScaleTime = 0;
-		let smoothedWeightChange = 0;
-		for (const item of ms) {
-			const m = item.machine || {};
-			const ss = m.state?.substate || "";
-			if (ss !== "preinfusion" && ss !== "pouring") continue;
-			const s = item.scale || {};
-			const mts = m.timestamp;
-			elapsed.push(mts != null ? ((new Date(mts).getTime() - t0) / 1e3).toFixed(1) : "0.0");
-			pressure.push(m.pressure != null ? m.pressure.toFixed(2) : "0.0");
-			pressureGoal.push(m.targetPressure != null ? m.targetPressure.toFixed(2) : "0.0");
-			flow.push(m.flow != null ? m.flow.toFixed(2) : "0.0");
-			flowGoal.push(m.targetFlow != null ? m.targetFlow.toFixed(2) : "0.0");
-			basket.push(m.groupTemperature != null ? m.groupTemperature.toFixed(2) : "0.0");
-			mix.push(m.mixTemperature != null ? m.mixTemperature.toFixed(2) : "0.0");
-			tempGoal.push(m.targetGroupTemperature != null ? m.targetGroupTemperature.toFixed(2) : "0.0");
-			let weightChange = 0;
-			if (s.weight != null) {
-				const scaleTs = s.timestamp;
-				if (scaleTs != null) {
-					const scaleTime = (new Date(scaleTs).getTime() - t0) / 1e3;
-					if (lastScaleTime > 0 && scaleTime > lastScaleTime) {
-						const timeDiff = scaleTime - lastScaleTime;
-						smoothedWeightChange = .1 * ((s.weight - lastScaleWeight) / timeDiff) + .9 * smoothedWeightChange;
-						weightChange = smoothedWeightChange;
-					}
-					lastScaleWeight = s.weight;
-					lastScaleTime = scaleTime;
-				}
-			}
-			flowByWeight.push(weightChange.toFixed(2));
-			weight.push(s.weight != null ? s.weight.toFixed(1) : "0.0");
-			waterDispensed.push(item.volume != null ? item.volume.toFixed(2) : "0.0");
-			const currState = (m.state?.state || "") + "/" + (m.state?.substate || "");
-			stateChange.push(currState !== prevState ? "10000000.0" : "0.0");
-			prevState = currState;
-		}
-		if (elapsed.length > 0) {
-			const et0 = parseFloat(elapsed[0]);
-			for (let j = 0; j < elapsed.length; j++) elapsed[j] = (parseFloat(elapsed[j]) - et0).toFixed(1);
-		}
-		const wf = shot.workflow || {};
-		const ctx = wf.context || {};
-		const prof = wf.profile || {};
-		const ann = shot.annotations || {};
-		const extras = shot.extras || {};
-		const scaleData = shot.scale || {};
-		const beanType = ctx.coffeeName || extras.bean_type || extras.beanType || scaleData.beanType || "";
-		const beanBrand = ctx.coffeeRoaster || extras.bean_brand || extras.beanBrand || extras.roaster || "";
-		return {
-			version: "2",
-			clock: String(Math.floor(Date.now() / 1e3)),
-			date: (/* @__PURE__ */ new Date()).toString(),
-			timestamp: String(Math.floor(Date.now() / 1e3)),
-			elapsed,
-			pressure: {
-				pressure,
-				goal: pressureGoal
-			},
-			flow: {
-				flow,
-				by_weight: flowByWeight,
-				goal: flowGoal
-			},
-			temperature: {
-				basket,
-				mix,
-				goal: tempGoal
-			},
-			totals: {
-				weight,
-				water_dispensed: waterDispensed
-			},
-			state_change: stateChange,
-			profile: {
-				title: prof.title || "Default",
-				author: prof.author || "Decent",
-				notes: prof.notes || "",
-				beverage_type: prof.beverage_type || "espresso",
-				tank_temperature: "0",
-				target_weight: ann.actualYield != null ? String(Math.round(ann.actualYield)) : "0",
-				target_volume: "0",
-				target_volume_count_start: String(prof.target_volume_count_start || 0),
-				version: "2"
-			},
-			meta: {
-				bean: {
-					brand: beanBrand,
-					type: beanType,
-					notes: ann.espressoNotes || prof.notes || "",
-					roast_level: extras.roast_level || extras.roastLevel || "",
-					roast_date: extras.roast_date || extras.roastDate || ""
-				},
-				shot: {
-					enjoyment: "0",
-					notes: "",
-					tds: "0",
-					ey: "0"
-				},
-				grinder: {
-					model: ctx.grinderModel || "",
-					setting: ctx.grinderSetting || ""
-				},
-				in: ann.actualDoseWeight != null ? String(ann.actualDoseWeight) : "0",
-				out: ann.actualYield != null ? String(ann.actualYield) : "0",
-				time: elapsed.length > 0 ? elapsed[elapsed.length - 1] : "0"
-			},
-			app: {
-				app_name: "Decent.app",
-				app_version: "1.0.0",
-				data: {}
-			}
-		};
-	}
-	var transformScript = `window.toTclFormat = (${toTclFormat.toString()});`;
-	//#endregion
 	//#region src/pages/settings.ts
 	function renderSettingsPage(request, version) {
 		return pageShell("Print The Shot", `<print-the-shot data-version="${version}"></print-the-shot>`, [transformScript, printTheShotComponent]);
@@ -981,10 +981,12 @@ customElements.define("print-the-shot", PrintTheShot);
 			message: "url and shot are required"
 		});
 		try {
+			const rawShot = body.shot;
+			const tcl = Array.isArray(rawShot.elapsed) ? rawShot : toTclFormat(rawShot);
 			const res = await Promise.race([fetch(body.url, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify(body.shot)
+				body: JSON.stringify(tcl)
 			}), new Promise((_, reject) => setTimeout(() => reject(/* @__PURE__ */ new Error("upload timeout")), UPLOAD_TIMEOUT_MS))]);
 			const text = await res.text();
 			return json(request, 200, {

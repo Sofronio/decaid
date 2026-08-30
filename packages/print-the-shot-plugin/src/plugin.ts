@@ -1,5 +1,6 @@
 /// <reference path="./host.d.ts" />
 
+import { toTclFormat } from "./api/transform";
 import { renderSettingsPage } from "./pages/settings";
 
 const VERSION = "1.3.0";
@@ -73,11 +74,15 @@ async function handleUploadProxy(
     });
   }
   try {
+    const rawShot = body.shot as Record<string, unknown>;
+    const tcl = Array.isArray(rawShot.elapsed)
+      ? rawShot
+      : toTclFormat(rawShot);
     const res = await Promise.race([
       fetch(body.url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body.shot),
+        body: JSON.stringify(tcl),
       }),
       new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error("upload timeout")), UPLOAD_TIMEOUT_MS)
