@@ -741,7 +741,7 @@ class PluginManager {
           return;
         }
         if (_hasPermission(pluginId, PluginPermissions.log)) {
-          _log.finest("[JS:$pluginId] ${msg['payload']?['message']}");
+          _log.fine("[JS:$pluginId] ${msg['payload']?['message']}");
         }
         return;
       }

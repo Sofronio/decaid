@@ -934,23 +934,132 @@ customElements.define("print-the-shot", PrintTheShot);
 	//#region src/plugin.ts
 	var VERSION = "1.3.0";
 	var UPLOAD_TIMEOUT_MS = 1e4;
+	var SHOT_FETCH_RETRIES = 3;
+	var SHOT_FETCH_DELAY_MS = 1e3;
+	var UPLOAD_ATTEMPTS = 3;
+	var UPLOAD_BACKOFF_MS = 2e3;
+	var API_BASE = "http://localhost:8080/api/v1";
+	function defaultState() {
+		return {
+			autoUpload: true,
+			serverUrl: "",
+			serverEndpoint: "upload",
+			useHttp: true,
+			machineName: "",
+			minSeconds: 6
+		};
+	}
+	function applySettings(state, settings) {
+		if (typeof settings.AutoUpload === "boolean") state.autoUpload = settings.AutoUpload;
+		if (typeof settings.ServerUrl === "string") state.serverUrl = settings.ServerUrl;
+		if (typeof settings.ServerEndpoint === "string") state.serverEndpoint = settings.ServerEndpoint;
+		if (typeof settings.UseHttp === "boolean") state.useHttp = settings.UseHttp;
+		if (typeof settings.MachineName === "string") state.machineName = settings.MachineName;
+		if (typeof settings.MinSeconds === "number") state.minSeconds = settings.MinSeconds;
+	}
+	function machineId(name) {
+		const clean = String(name || "").replace(/[^A-Za-z0-9]/g, "");
+		return clean ? clean.slice(0, 20) : "UNKNOWN";
+	}
+	async function fetchShotWithRetry(shotId) {
+		for (let attempt = 1; attempt <= SHOT_FETCH_RETRIES; attempt++) {
+			try {
+				const res = await fetch(`${API_BASE}/shots/${shotId}`);
+				if (res.ok) return await res.json();
+			} catch {}
+			if (attempt < SHOT_FETCH_RETRIES) await new Promise((r) => setTimeout(r, SHOT_FETCH_DELAY_MS));
+		}
+		return null;
+	}
+	function passesFilters(shot, state, log) {
+		const wf = shot.workflow || {};
+		const beverage = wf.profile && wf.profile.beverage_type || "espresso";
+		if (beverage === "cleaning" || beverage === "calibrate") {
+			log(`skipping ${beverage} shot`);
+			return false;
+		}
+		const ms = shot.measurements || [];
+		let duration = 0;
+		if (ms.length >= 2) {
+			const first = ms[0].machine && ms[0].machine.timestamp;
+			const last = ms[ms.length - 1].machine && ms[ms.length - 1].machine.timestamp;
+			duration = first && last ? Math.round((new Date(last).getTime() - new Date(first).getTime()) / 1e3) : Math.round(ms.length * .24);
+		}
+		if (duration < state.minSeconds) {
+			log(`shot too short (${duration}s < ${state.minSeconds}s), skipping`);
+			return false;
+		}
+		return true;
+	}
+	function buildTargetUrl(state) {
+		const ts = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "").slice(0, 15);
+		return `${state.useHttp ? "http" : "https"}://${String(state.serverUrl).replace(/^https?:[/][/]/, "")}/${state.serverEndpoint}?machine_id=${machineId(state.machineName)}&timestamp=${ts}&plugin_version=${VERSION}`;
+	}
+	async function uploadWithRetry(url, tcl, log) {
+		for (let attempt = 1; attempt <= UPLOAD_ATTEMPTS; attempt++) {
+			try {
+				const res = await Promise.race([fetch(url, {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify(tcl)
+				}), new Promise((_, reject) => setTimeout(() => reject(/* @__PURE__ */ new Error("upload timeout")), UPLOAD_TIMEOUT_MS))]);
+				if (res.ok) {
+					log(`upload OK (attempt ${attempt})`);
+					return true;
+				}
+				log(`attempt ${attempt} failed: HTTP ${res.status}`);
+			} catch (e) {
+				log(`attempt ${attempt} error: ${e instanceof Error ? e.message : String(e)}`);
+			}
+			if (attempt < UPLOAD_ATTEMPTS) await new Promise((r) => setTimeout(r, UPLOAD_BACKOFF_MS));
+		}
+		log("upload FAILED after 3 attempts");
+		return false;
+	}
+	async function autoProcessShot(shotId, state, log) {
+		if (!state.serverUrl) {
+			log("no server configured, skipping auto-upload");
+			return;
+		}
+		log(`auto-upload shot ${shotId.slice(0, 8)}`);
+		const shot = await fetchShotWithRetry(shotId);
+		if (!shot) {
+			log("shot fetch failed");
+			return;
+		}
+		if (!passesFilters(shot, state, log)) return;
+		const tcl = toTclFormat(shot);
+		await uploadWithRetry(buildTargetUrl(state), tcl, log);
+	}
 	function createPlugin(host) {
 		const log = (msg) => host.log(`[print-the-shot] ${msg}`);
+		const state = defaultState();
+		let inFlight = false;
 		return {
 			id: "print-the-shot.reaplugin",
 			version: VERSION,
-			onLoad() {
-				log("loaded v1.3.0");
+			onLoad(settings) {
+				applySettings(state, settings);
+				log(`loaded v${VERSION}, auto-upload ${state.autoUpload ? "ON" : "OFF"}, server=${state.serverUrl || "unset"}`);
 			},
 			onUnload() {},
 			onEvent(event) {
-				if (event.name === "shotStored") {
-					const id = event.payload?.id;
-					if (typeof id === "string") {
-						log("shotStored: " + id);
-						host.emit("events", { id });
-					}
+				if (event.name !== "shotStored") return;
+				const id = event.payload?.id;
+				if (typeof id !== "string") return;
+				host.emit("events", { id });
+				if (inFlight) {
+					log("auto-upload already in flight, skipping " + id.slice(0, 8));
+					return;
 				}
+				if (!state.autoUpload) {
+					log("auto-upload disabled, skipping " + id.slice(0, 8));
+					return;
+				}
+				inFlight = true;
+				autoProcessShot(id, state, log).finally(() => {
+					inFlight = false;
+				});
 			},
 			__httpRequestHandler(request) {
 				switch (request.endpoint) {
