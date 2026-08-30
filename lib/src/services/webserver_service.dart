@@ -377,6 +377,10 @@ Future<void> startWebServer(
     '0.0.0.0',
     8080,
   );
+  // Dart's HttpServer sets X-Frame-Options: SAMEORIGIN on every response by
+  // default; remove it so plugin HTML pages (e.g. print-the-shot.ui) can be
+  // embedded in skin iframes.
+  server.defaultResponseHeaders.remove('X-Frame-Options', 'SAMEORIGIN');
   log.info('API Web server running on ${server.address.host}:${server.port}');
 
   await startApiDocsServer();
