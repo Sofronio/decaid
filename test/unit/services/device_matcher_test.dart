@@ -6,6 +6,7 @@ import 'package:reaprime/src/models/device/impl/acaia/acaia_scale.dart';
 import 'package:reaprime/src/models/device/impl/atomheart/atomheart_scale.dart';
 import 'package:reaprime/src/models/device/impl/bengle/bengle.dart';
 import 'package:reaprime/src/models/device/impl/blackcoffee/blackcoffee_scale.dart';
+import 'package:reaprime/src/models/device/impl/bookoo/bookoo_grinder.dart';
 import 'package:reaprime/src/models/device/impl/bookoo/miniscale.dart';
 import 'package:reaprime/src/models/device/impl/de1/unified_de1/unified_de1.dart';
 import 'package:reaprime/src/models/device/impl/decent_scale/scale.dart';
