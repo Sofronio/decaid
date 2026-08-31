@@ -149,9 +149,9 @@ class _GrinderDebugViewState extends State<GrinderDebugView> {
               if (_last != null) ...[
                 _buildMockDisplay(theme, _last!),
                 const SizedBox(height: 16),
-                _buildStatusTable(theme, _last!),
-                const SizedBox(height: 16),
                 _buildSettingsPanel(theme, _last!),
+                const SizedBox(height: 16),
+                _buildStatusTable(theme, _last!),
                 const SizedBox(height: 16),
                 _buildPresetPanel(theme, _last!),
                 const SizedBox(height: 16),
@@ -204,23 +204,11 @@ class _GrinderDebugViewState extends State<GrinderDebugView> {
 
   Widget _buildStatusTable(ShadThemeData theme, GrinderSnapshot s) {
     String boolText(bool? v) => v == null ? '—' : (v ? '开' : '关');
-    Widget tile(String label, String value) => Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(label, style: theme.textTheme.small),
-        Text(
-          value,
-          style: theme.textTheme.h4.copyWith(fontWeight: FontWeight.w600),
-        ),
-      ],
-    );
-    final topRow = <(String, String)>[
+    final rows = <(String, String)>[
       ('杯检', boolText(s.cupDetect)),
       ('自动停止', boolText(s.autoStop)),
       ('强力清粉', boolText(s.fastClean)),
       ('WiFi', s.wifiName ?? '—'),
-    ];
-    final rest = <(String, String)>[
       ('连接状态', _connected ? '已连接' : '未连接'),
       ('累计研磨', s.totalGrinds?.toString() ?? '—'),
       ('亮度', s.brightness?.toString() ?? '—'),
@@ -238,27 +226,17 @@ class _GrinderDebugViewState extends State<GrinderDebugView> {
           children: [
             Text('实时状态 (约200ms/条)', style: theme.textTheme.h3),
             const SizedBox(height: 8),
-            Row(
-              children: [
-                for (final row in topRow) Expanded(child: tile(row.$1, row.$2)),
-              ],
-            ),
-            const SizedBox(height: 12),
-            GridView.count(
-              crossAxisCount: 3,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              childAspectRatio: 2.6,
-              children: [
-                for (final row in rest)
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(row.$1, style: theme.textTheme.small),
-                      Text(row.$2, style: theme.textTheme.h4),
-                    ],
-                  ),
-              ],
+            ...rows.map(
+              (r) => Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(r.$1, style: theme.textTheme.muted),
+                    Text(r.$2, style: theme.textTheme.h4),
+                  ],
+                ),
+              ),
             ),
           ],
         ),
