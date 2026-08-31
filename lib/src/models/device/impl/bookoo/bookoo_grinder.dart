@@ -70,6 +70,7 @@ class BookooGrinder implements Grinder {
   String? _releaseVer;
   List<GrinderPreset> _presets = const [];
   List<GrindSection> _grindSections = const [];
+  int? _selectedPresetIndex;
 
   BookooGrinder({
     required BLETransport transport,
@@ -77,8 +78,14 @@ class BookooGrinder implements Grinder {
   }) : _transport = transport,
        _queryGap = queryGap;
 
+  final StreamController<GrinderLogEntry> _logController =
+      StreamController.broadcast();
+
   @override
   Stream<GrinderSnapshot> get currentSnapshot => _streamController.stream;
+
+  @override
+  Stream<GrinderLogEntry> get logStream => _logController.stream;
 
   @override
   String get deviceId => _transport.id;
@@ -160,6 +167,26 @@ class BookooGrinder implements Grinder {
   Future<void> stop() async {
     await _send({
       'grind': {'op': 'stop'},
+    });
+  }
+
+  @override
+  Future<void> querySections() async {
+    await _send({
+      'grindSection': {
+        'op': 'get',
+        'selector': {'type': 'all'},
+      },
+    });
+  }
+
+  @override
+  Future<void> queryPresets() async {
+    await _send({
+      'grindPreset': {
+        'op': 'get',
+        'selector': {'type': 'all'},
+      },
     });
   }
 
@@ -291,6 +318,13 @@ class BookooGrinder implements Grinder {
     view.setUint32(4, payload.length, Endian.little);
     frame.setRange(8, 8 + payload.length, payload);
     _seq = (_seq + 1) & 0xffff;
+    _logController.add(
+      GrinderLogEntry(
+        kind: GrinderLogKind.send,
+        seq: (_seq - 1) & 0xffff,
+        text: jsonEncode({'request': request}),
+      ),
+    );
     try {
       await _transport.write(
         serviceIdentifier.long,
@@ -330,6 +364,15 @@ class BookooGrinder implements Grinder {
   }
 
   void _handleFrame(int seq, String text) {
+    _logController.add(
+      GrinderLogEntry(
+        kind: text.contains('"response"')
+            ? GrinderLogKind.response
+            : GrinderLogKind.broadcast,
+        seq: seq,
+        text: text,
+      ),
+    );
     final decoded = jsonDecode(text);
     if (decoded is! Map<String, dynamic>) return;
     if (text.contains('"response"')) {
@@ -338,7 +381,7 @@ class BookooGrinder implements Grinder {
       _mergeBroadcast(decoded);
     }
     _streamController.add(_snapshot());
-    _log.info(
+    _log.fine(
       'Snapshot: ${_devState.name} rpm=$_grindRpm feeding=$_feedingRpm '
       'gap=$_bladeGap presets=${_presets.length} sections=${_grindSections.length}',
     );
@@ -404,8 +447,16 @@ class BookooGrinder implements Grinder {
   }
 
   void _mergeBroadcast(Map<String, dynamic> decoded) {
+    final broadcast = decoded['broadcast'];
+    final periodInfo = broadcast is Map<String, dynamic>
+        ? broadcast['periodInfo']
+        : null;
     final fields = decoded['fields'];
-    final source = fields is Map<String, dynamic> ? fields : decoded;
+    final source = fields is Map<String, dynamic>
+        ? fields
+        : periodInfo is Map<String, dynamic>
+        ? periodInfo
+        : decoded;
     _feedingRpm = _asInt(source['feedingRpm']) ?? _feedingRpm;
     _grindRpm = _asInt(source['grindRpm']) ?? _grindRpm;
     _bladeGap = _asInt(source['bladeGap']) ?? _bladeGap;
@@ -421,12 +472,15 @@ class BookooGrinder implements Grinder {
     _snCode = _asString(source['snCode']) ?? _snCode;
     _resetReason = _asString(source['resetReason']) ?? _resetReason;
     _releaseVer = _asString(source['releaseVer']) ?? _releaseVer;
+    _selectedPresetIndex =
+        _asInt(source['selectPreset']) ?? _selectedPresetIndex;
     final devState = _asString(source['devState']);
     if (devState != null) {
       _devState = switch (devState) {
         'IDLE' => GrinderDevState.idle,
         'GRINDING' => GrinderDevState.grinding,
         'HIGHSPEEDCLEAN' => GrinderDevState.highspeedClean,
+        'SETTING' => GrinderDevState.setting,
         _ => GrinderDevState.unknown,
       };
     }
@@ -452,6 +506,7 @@ class BookooGrinder implements Grinder {
       resetReason: _resetReason,
       releaseVer: _releaseVer,
       presets: _presets,
+      selectedPresetIndex: _selectedPresetIndex,
       grindSections: _grindSections,
     );
   }

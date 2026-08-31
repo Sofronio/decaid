@@ -22,8 +22,8 @@ class _BookooTransport extends BLETransport {
   @override
   Future<List<String>> discoverServices() async =>
       discoverServicesOverride.isEmpty
-          ? [BookooGrinder.serviceIdentifier.long]
-          : discoverServicesOverride;
+      ? [BookooGrinder.serviceIdentifier.long]
+      : discoverServicesOverride;
 
   @override
   String get id => 'motto80-test';
@@ -96,10 +96,8 @@ Uint8List _frame(int seq, String jsonPayload) {
   return frame;
 }
 
-BookooGrinder _grinder(_BookooTransport transport) => BookooGrinder(
-  transport: transport,
-  queryGap: Duration.zero,
-);
+BookooGrinder _grinder(_BookooTransport transport) =>
+    BookooGrinder(transport: transport, queryGap: Duration.zero);
 
 void main() {
   late _BookooTransport transport;
@@ -124,15 +122,25 @@ void main() {
 
   test('onConnect subscribes and sends the startup query sequence', () {
     final encoded = transport.writes.map(_decodeWrite).toList();
-    expect(encoded[0], {'request': {'appHello': {'op': 'handshake'}}});
+    expect(encoded[0], {
+      'request': {
+        'appHello': {'op': 'handshake'},
+      },
+    });
     expect(encoded[1], {
       'request': {
-        'grindSection': {'op': 'get', 'selector': {'type': 'all'}},
+        'grindSection': {
+          'op': 'get',
+          'selector': {'type': 'all'},
+        },
       },
     });
     expect(encoded[2], {
       'request': {
-        'grindPreset': {'op': 'get', 'selector': {'type': 'all'}},
+        'grindPreset': {
+          'op': 'get',
+          'selector': {'type': 'all'},
+        },
       },
     });
   });
@@ -147,8 +155,9 @@ void main() {
     expect(second[2], 0x01); // seq 1
     final third = transport.writes[2];
     expect(third[2], 0x02); // seq 2
-    final payloadLen = ByteData.sublistView(Uint8List.fromList(first))
-        .getUint32(4, Endian.little);
+    final payloadLen = ByteData.sublistView(
+      Uint8List.fromList(first),
+    ).getUint32(4, Endian.little);
     expect(payloadLen, first.length - 8);
   });
 
@@ -189,10 +198,22 @@ void main() {
   });
 
   test('later broadcasts merge, retaining missing fields', () async {
-    transport.emit(_frame(0x2001, jsonEncode({'fields': {'devState': 'IDLE'}})));
+    transport.emit(
+      _frame(
+        0x2001,
+        jsonEncode({
+          'fields': {'devState': 'IDLE'},
+        }),
+      ),
+    );
     await Future<void>.delayed(Duration.zero);
     transport.emit(
-      _frame(0x2002, jsonEncode({'fields': {'grindRpm': 900}})),
+      _frame(
+        0x2002,
+        jsonEncode({
+          'fields': {'grindRpm': 900},
+        }),
+      ),
     );
     await Future<void>.delayed(Duration.zero);
     expect(snapshots.last.devState, GrinderDevState.idle);
@@ -320,12 +341,19 @@ void main() {
     final before = transport.writes.length;
     await grinder.start();
     await grinder.stop();
-    final commands = transport.writes.sublist(before).map(_decodeWrite).toList();
+    final commands = transport.writes
+        .sublist(before)
+        .map(_decodeWrite)
+        .toList();
     expect(commands[0], {
-      'request': {'grind': {'op': 'start'}},
+      'request': {
+        'grind': {'op': 'start'},
+      },
     });
     expect(commands[1], {
-      'request': {'grind': {'op': 'stop'}},
+      'request': {
+        'grind': {'op': 'stop'},
+      },
     });
   });
 
@@ -334,7 +362,10 @@ void main() {
     await grinder.setBladeGap(400);
     await grinder.setGrindRpm(850);
     await grinder.setCupDetect(true);
-    final commands = transport.writes.sublist(before).map(_decodeWrite).toList();
+    final commands = transport.writes
+        .sublist(before)
+        .map(_decodeWrite)
+        .toList();
     expect(commands[0], {
       'request': {
         'geneSetting': {

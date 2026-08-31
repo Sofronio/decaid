@@ -10,7 +10,8 @@ import 'package:reaprime/src/models/errors.dart';
 import 'package:rxdart/rxdart.dart';
 
 class _FakeGrinder implements Grinder {
-  _FakeGrinder(this._id, {bool failConnect = false}) : _failConnect = failConnect;
+  _FakeGrinder(this._id, {bool failConnect = false})
+    : _failConnect = failConnect;
 
   final String _id;
   final bool _failConnect;
@@ -52,10 +53,19 @@ class _FakeGrinder implements Grinder {
   Future<void> disconnect() async => states.add(ConnectionState.disconnected);
 
   @override
+  Stream<GrinderLogEntry> get logStream => const Stream.empty();
+
+  @override
   Future<void> start() async {}
 
   @override
   Future<void> stop() async {}
+
+  @override
+  Future<void> querySections() async {}
+
+  @override
+  Future<void> queryPresets() async {}
 
   @override
   Future<void> setGrindSection({int? index, String? name}) async {}
@@ -111,10 +121,7 @@ void main() {
     expect(controller.lastConnectedDeviceId, 'grinder-1');
     expect(controller.connectedGrinder(), same(grinder));
     expect(snapshots.single.devState, GrinderDevState.grinding);
-    expect(
-      controller.currentConnectionState,
-      ConnectionState.connected,
-    );
+    expect(controller.currentConnectionState, ConnectionState.connected);
 
     controller.dispose();
     await grinder.snapshots.close();
@@ -125,10 +132,7 @@ void main() {
     final controller = GrinderController();
     final grinder = _FakeGrinder('grinder-2', failConnect: true);
 
-    await expectLater(
-      controller.connectToGrinder(grinder),
-      throwsStateError,
-    );
+    await expectLater(controller.connectToGrinder(grinder), throwsStateError);
     expect(controller.currentConnectionState, ConnectionState.disconnected);
 
     controller.dispose();

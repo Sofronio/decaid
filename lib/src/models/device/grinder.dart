@@ -1,10 +1,28 @@
 import 'device.dart';
 
+enum GrinderLogKind { send, response, broadcast }
+
+class GrinderLogEntry {
+  final GrinderLogKind kind;
+  final int seq;
+  final String text;
+
+  const GrinderLogEntry({
+    required this.kind,
+    required this.seq,
+    required this.text,
+  });
+}
+
 abstract class Grinder extends Device {
   Stream<GrinderSnapshot> get currentSnapshot;
 
+  Stream<GrinderLogEntry> get logStream;
+
   Future<void> start();
   Future<void> stop();
+  Future<void> querySections();
+  Future<void> queryPresets();
   Future<void> setGrindSection({int? index, String? name});
   Future<void> setPreset({String? uid, int? index});
   Future<void> setFeedingRpm(int rpm);
@@ -18,7 +36,7 @@ abstract class Grinder extends Device {
   Future<void> reboot();
 }
 
-enum GrinderDevState { idle, grinding, highspeedClean, unknown }
+enum GrinderDevState { idle, grinding, highspeedClean, setting, unknown }
 
 class GrinderPreset {
   final String uid;
@@ -58,6 +76,7 @@ class GrinderSnapshot {
   final String? releaseVer;
   final List<GrinderPreset> presets;
   final List<GrindSection> grindSections;
+  final int? selectedPresetIndex;
 
   const GrinderSnapshot({
     required this.timestamp,
@@ -78,6 +97,7 @@ class GrinderSnapshot {
     this.resetReason,
     this.releaseVer,
     this.presets = const [],
+    this.selectedPresetIndex,
     this.grindSections = const [],
   });
 
@@ -102,6 +122,7 @@ class GrinderSnapshot {
       'releaseVer': releaseVer,
       'presets': presets.map((p) => p.toJson()).toList(),
       'grindSections': grindSections.map((s) => s.toJson()).toList(),
+      'selectedPresetIndex': selectedPresetIndex,
     };
   }
 }

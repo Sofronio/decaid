@@ -26,6 +26,9 @@ class MockGrinder implements Grinder, SimulatedDevice {
   Stream<GrinderSnapshot> get currentSnapshot => _snapshotStream.stream;
 
   @override
+  Stream<GrinderLogEntry> get logStream => const Stream.empty();
+
+  @override
   String get deviceId => 'MockGrinder';
 
   @override
@@ -70,6 +73,12 @@ class MockGrinder implements Grinder, SimulatedDevice {
     _devState = GrinderDevState.idle;
     _snapshotStream.add(_snapshot());
   }
+
+  @override
+  Future<void> querySections() async {}
+
+  @override
+  Future<void> queryPresets() async {}
 
   @override
   Future<void> setGrindSection({int? index, String? name}) async {}
