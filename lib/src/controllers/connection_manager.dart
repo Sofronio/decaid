@@ -1763,8 +1763,7 @@ class ConnectionManager {
     final preferredGrinderId = settingsController.preferredGrinderId;
     if (preferredGrinderId == null || grinders.isEmpty) return;
     if (grinderController.lastConnectedDeviceId == preferredGrinderId &&
-        grinderController.currentConnectionState ==
-            ConnectionState.connected) {
+        grinderController.currentConnectionState == ConnectionState.connected) {
       return;
     }
     final match = grinders
