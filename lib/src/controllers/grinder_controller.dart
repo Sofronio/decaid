@@ -118,7 +118,10 @@ class GrinderController {
     _grinderConnection = null;
   }
 
+  GrinderSnapshot? latestSnapshot;
+
   void _processSnapshot(GrinderSnapshot snapshot) {
+    latestSnapshot = snapshot;
     _snapshotController.add(snapshot);
   }
 
