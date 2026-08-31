@@ -171,7 +171,7 @@ void main() {
               'devState': 'SETTING',
               'feedingRpm': 50,
               'grindRpm': 750,
-              'bladeGap': 250,
+              'grindSetting': 250,
               'humidity': 35,
               'totalGrinds': 26,
               'cupDetect': true,
@@ -191,7 +191,7 @@ void main() {
     expect(s.devState, GrinderDevState.setting);
     expect(s.feedingRpm, 50);
     expect(s.grindRpm, 750);
-    expect(s.bladeGap, 250);
+    expect(s.grindSetting, 250);
     expect(s.humidity, 35);
     expect(s.totalGrinds, 26);
     expect(s.cupDetect, isTrue);
@@ -212,7 +212,7 @@ void main() {
             'devState': 'GRINDING',
             'feedingRpm': 30,
             'grindRpm': 800,
-            'bladeGap': 400,
+            'grindSetting': 400,
             'humidity': 55,
             'totalGrinds': 1234,
             'cupDetect': true,
@@ -231,7 +231,7 @@ void main() {
     expect(s.devState, GrinderDevState.grinding);
     expect(s.feedingRpm, 30);
     expect(s.grindRpm, 800);
-    expect(s.bladeGap, 400);
+    expect(s.grindSetting, 400);
     expect(s.humidity, 55);
     expect(s.totalGrinds, 1234);
     expect(s.cupDetect, isTrue);
@@ -322,7 +322,7 @@ void main() {
     final full = _frame(
       0x4002,
       jsonEncode({
-        'fields': {'devState': 'IDLE', 'bladeGap': 300},
+        'fields': {'devState': 'IDLE', 'grindSetting': 300},
       }),
     );
     transport.emit(full.sublist(0, 12));
@@ -330,7 +330,7 @@ void main() {
     transport.emit(full.sublist(20));
     await Future<void>.delayed(Duration.zero);
     expect(snapshots.single.devState, GrinderDevState.idle);
-    expect(snapshots.single.bladeGap, 300);
+    expect(snapshots.single.grindSetting, 300);
   });
 
   test('decodes UTF-8 split across fragment boundaries', () async {
@@ -401,7 +401,7 @@ void main() {
 
   test('geneSetting setters write the expected payloads', () async {
     final before = transport.writes.length;
-    await grinder.setBladeGap(400);
+    await grinder.setGrindSetting(400);
     await grinder.setGrindRpm(850);
     await grinder.setCupDetect(true);
     final commands = transport.writes

@@ -24,7 +24,7 @@ const _numSettings = [
   ('grindRpm', 500, 1500, 50),
   ('brightness', 0, 10, 1),
   ('standbySec', 0, 900, 30),
-  ('bladeGap', 0, 1000, 5),
+  ('grindSetting', 0, 1000, 5),
 ];
 
 String _numSettingLabel(String key) {
@@ -33,7 +33,7 @@ String _numSettingLabel(String key) {
     'grindRpm' => _t('Grind RPM', '刀盘转速'),
     'brightness' => _t('Brightness', '亮度'),
     'standbySec' => _t('Standby (s)', '熄屏秒'),
-    'bladeGap' => _t('Grind size', '研磨度'),
+    'grindSetting' => _t('Grind size', '研磨度'),
     _ => key,
   };
 }
@@ -119,8 +119,8 @@ class _GrinderDebugViewState extends State<GrinderDebugView> {
         await widget.grinder.setBrightness(value.round());
       case 'standbySec':
         await widget.grinder.setStandbySec(value.round());
-      case 'bladeGap':
-        await widget.grinder.setBladeGap(value.round());
+      case 'grindSetting':
+        await widget.grinder.setGrindSetting(value.round());
     }
   }
 
@@ -222,7 +222,7 @@ class _GrinderDebugViewState extends State<GrinderDebugView> {
       child: Row(
         children: [
           Text(
-            s.bladeGap?.toString() ?? '--',
+            s.grindSetting?.toString() ?? '--',
             style: theme.textTheme.h1.copyWith(fontWeight: FontWeight.w700),
           ),
           Text(_t(' μm', ' μm'), style: theme.textTheme.muted),
@@ -551,8 +551,8 @@ class _GrinderDebugViewState extends State<GrinderDebugView> {
         return s.brightness?.toDouble();
       case 'standbySec':
         return s.standbySec?.toDouble();
-      case 'bladeGap':
-        return s.bladeGap?.toDouble();
+      case 'grindSetting':
+        return s.grindSetting?.toDouble();
       default:
         return null;
     }

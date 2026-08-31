@@ -80,7 +80,7 @@ class _FakeGrinder implements Grinder {
   Future<void> setGrindRpm(int rpm) async {}
 
   @override
-  Future<void> setBladeGap(int micrometers) async {}
+  Future<void> setGrindSetting(int value) async {}
 
   @override
   Future<void> setBrightness(int level) async {}

@@ -17,7 +17,7 @@ class MockGrinder implements Grinder, SimulatedDevice {
   GrinderDevState _devState = GrinderDevState.idle;
   int _grindRpm = 750;
   int _feedingRpm = 30;
-  int _bladeGap = 400;
+  int _grindSetting = 400;
 
   @override
   Stream<ConnectionState> get connectionState => _connectionSubject.stream;
@@ -99,8 +99,8 @@ class MockGrinder implements Grinder, SimulatedDevice {
   }
 
   @override
-  Future<void> setBladeGap(int micrometers) async {
-    _bladeGap = micrometers;
+  Future<void> setGrindSetting(int value) async {
+    _grindSetting = value;
     _snapshotStream.add(_snapshot());
   }
 
@@ -128,7 +128,7 @@ class MockGrinder implements Grinder, SimulatedDevice {
       devState: _devState,
       feedingRpm: _feedingRpm,
       grindRpm: _grindRpm,
-      bladeGap: _bladeGap,
+      grindSetting: _grindSetting,
       presets: const [
         GrinderPreset(uid: 'mock-fine', name: 'Mock Fine'),
         GrinderPreset(uid: 'mock-coarse', name: 'Mock Coarse'),

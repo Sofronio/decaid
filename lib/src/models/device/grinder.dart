@@ -27,7 +27,7 @@ abstract class Grinder extends Device {
   Future<void> setPreset({String? uid, int? index});
   Future<void> setFeedingRpm(int rpm);
   Future<void> setGrindRpm(int rpm);
-  Future<void> setBladeGap(int micrometers);
+  Future<void> setGrindSetting(int value);
   Future<void> setBrightness(int level);
   Future<void> setStandbySec(int seconds);
   Future<void> setCupDetect(bool enabled);
@@ -61,7 +61,7 @@ class GrinderSnapshot {
   final GrinderDevState devState;
   final int? feedingRpm;
   final int? grindRpm;
-  final int? bladeGap;
+  final int? grindSetting;
   final int? humidity;
   final int? totalGrinds;
   final bool? cupDetect;
@@ -83,7 +83,7 @@ class GrinderSnapshot {
     required this.devState,
     this.feedingRpm,
     this.grindRpm,
-    this.bladeGap,
+    this.grindSetting,
     this.humidity,
     this.totalGrinds,
     this.cupDetect,
@@ -107,7 +107,7 @@ class GrinderSnapshot {
       'devState': devState.name,
       'feedingRpm': feedingRpm,
       'grindRpm': grindRpm,
-      'bladeGap': bladeGap,
+      'grindSetting': grindSetting,
       'humidity': humidity,
       'totalGrinds': totalGrinds,
       'cupDetect': cupDetect,

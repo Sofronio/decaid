@@ -55,7 +55,7 @@ class BookooGrinder implements Grinder {
   GrinderDevState _devState = GrinderDevState.unknown;
   int? _feedingRpm;
   int? _grindRpm;
-  int? _bladeGap;
+  int? _grindSetting;
   int? _humidity;
   int? _totalGrinds;
   bool? _cupDetect;
@@ -231,11 +231,11 @@ class BookooGrinder implements Grinder {
   }
 
   @override
-  Future<void> setBladeGap(int micrometers) async {
+  Future<void> setGrindSetting(int value) async {
     await _send({
       'geneSetting': {
         'op': 'set',
-        'data': {'bladeGap': micrometers},
+        'data': {'bladeGap': value},
       },
     });
   }
@@ -383,7 +383,7 @@ class BookooGrinder implements Grinder {
     _streamController.add(_snapshot());
     _log.fine(
       'Snapshot: ${_devState.name} rpm=$_grindRpm feeding=$_feedingRpm '
-      'gap=$_bladeGap presets=${_presets.length} sections=${_grindSections.length}',
+      'gap=$_grindSetting presets=${_presets.length} sections=${_grindSections.length}',
     );
   }
 
@@ -459,7 +459,7 @@ class BookooGrinder implements Grinder {
         : decoded;
     _feedingRpm = _asInt(source['feedingRpm']) ?? _feedingRpm;
     _grindRpm = _asInt(source['grindRpm']) ?? _grindRpm;
-    _bladeGap = _asInt(source['bladeGap']) ?? _bladeGap;
+    _grindSetting = _asInt(source['grindSetting']) ?? _grindSetting;
     _humidity = _asInt(source['humidity']) ?? _humidity;
     _totalGrinds = _asInt(source['totalGrinds']) ?? _totalGrinds;
     _cupDetect = _asBool(source['cupDetect']) ?? _cupDetect;
@@ -492,7 +492,7 @@ class BookooGrinder implements Grinder {
       devState: _devState,
       feedingRpm: _feedingRpm,
       grindRpm: _grindRpm,
-      bladeGap: _bladeGap,
+      grindSetting: _grindSetting,
       humidity: _humidity,
       totalGrinds: _totalGrinds,
       cupDetect: _cupDetect,
