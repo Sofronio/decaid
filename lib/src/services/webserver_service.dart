@@ -429,6 +429,7 @@ Handler _init(
   de1Handler.addRoutes(app);
   firmwareHandler.addRoutes(app);
   scaleHandler.addRoutes(app);
+  grinderHandler.addRoutes(app);
   settingsHandler.addRoutes(app);
   sensorsHandler.addRoutes(app);
   workflowHandler.addRoutes(app);
