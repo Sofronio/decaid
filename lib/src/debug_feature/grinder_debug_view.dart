@@ -147,9 +147,7 @@ class _GrinderDebugViewState extends State<GrinderDebugView> {
             padding: const EdgeInsets.all(16),
             children: [
               if (_last != null) ...[
-                _buildMockDisplay(theme, _last!),
-                const SizedBox(height: 16),
-                _buildStatusTable(theme, _last!),
+                _buildHeader(theme, _last!),
                 const SizedBox(height: 16),
                 _buildSettingsPanel(theme, _last!),
                 const SizedBox(height: 16),
@@ -168,79 +166,104 @@ class _GrinderDebugViewState extends State<GrinderDebugView> {
     );
   }
 
-  Widget _buildMockDisplay(ShadThemeData theme, GrinderSnapshot s) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.mutedForeground.withValues(alpha: 0.06),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: theme.colorScheme.border),
-      ),
-      child: Row(
-        children: [
-          Text(
-            s.bladeGap?.toString() ?? '--',
-            style: theme.textTheme.h1.copyWith(fontWeight: FontWeight.w700),
-          ),
-          Text(' μm', style: theme.textTheme.muted),
-          const SizedBox(width: 24),
-          Text('下豆 ${s.feedingRpm ?? '--'}', style: theme.textTheme.h4),
-          Text(' RPM', style: theme.textTheme.muted),
-          const SizedBox(width: 24),
-          Text('转速 ${s.grindRpm ?? '--'}', style: theme.textTheme.h4),
-          Text(' RPM', style: theme.textTheme.muted),
-          const SizedBox(width: 24),
-          Text('湿度 ${s.humidity ?? '--'}', style: theme.textTheme.h4),
-          Text(' %RH', style: theme.textTheme.muted),
-          const Spacer(),
-          Text(
-            _devStateNames[s.devState] ?? s.devState.name,
-            style: theme.textTheme.h4.copyWith(color: Colors.lightBlue),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatusTable(ShadThemeData theme, GrinderSnapshot s) {
+  Widget _buildHeader(ShadThemeData theme, GrinderSnapshot s) {
     String boolText(bool? v) => v == null ? '—' : (v ? '开' : '关');
-    final rows = <(String, String)>[
-      ('杯检', boolText(s.cupDetect)),
-      ('自动停止', boolText(s.autoStop)),
-      ('强力清粉', boolText(s.fastClean)),
-      ('WiFi', s.wifiName ?? '—'),
-      ('连接状态', _connected ? '已连接' : '未连接'),
-      ('累计研磨', s.totalGrinds?.toString() ?? '—'),
-      ('亮度', s.brightness?.toString() ?? '—'),
-      ('熄屏秒', s.standbySec?.toString() ?? '—'),
-      ('网络', s.netState ?? '—'),
-      ('序列号', s.snCode ?? '—'),
-      ('开机原因', s.resetReason ?? '—'),
-      ('固件版本', s.releaseVer ?? '—'),
+    final statusRows = <List<(String, String)>>[
+      [
+        ('杯检', boolText(s.cupDetect)),
+        ('自动停止', boolText(s.autoStop)),
+        ('强力清粉', boolText(s.fastClean)),
+        ('WiFi', s.wifiName ?? '—'),
+      ],
+      [
+        ('连接状态', _connected ? '已连接' : '未连接'),
+        ('累计研磨', s.totalGrinds?.toString() ?? '—'),
+        ('亮度', s.brightness?.toString() ?? '—'),
+        ('熄屏秒', s.standbySec?.toString() ?? '—'),
+      ],
+      [
+        ('网络', s.netState ?? '—'),
+        ('序列号', s.snCode ?? '—'),
+        ('开机原因', s.resetReason ?? '—'),
+        ('固件版本', s.releaseVer ?? '—'),
+      ],
     ];
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Row(
           children: [
-            Text('实时状态 (约200ms/条)', style: theme.textTheme.h3),
-            const SizedBox(height: 8),
-            GridView.count(
-              crossAxisCount: 3,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              childAspectRatio: 2.6,
-              children: [
-                for (final row in rows)
+            Expanded(
+              flex: 1,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.baseline,
+                    textBaseline: TextBaseline.alphabetic,
                     children: [
-                      Text(row.$1, style: theme.textTheme.muted),
-                      Text(row.$2, style: theme.textTheme.h4),
+                      Text(
+                        s.bladeGap?.toString() ?? '--',
+                        style: theme.textTheme.h1.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      Text(' μm', style: theme.textTheme.muted),
                     ],
                   ),
-              ],
+                  const SizedBox(height: 8),
+                  Text(
+                    '下豆 ${s.feedingRpm ?? '--'} RPM',
+                    style: theme.textTheme.h4,
+                  ),
+                  Text(
+                    '转速 ${s.grindRpm ?? '--'} RPM',
+                    style: theme.textTheme.h4,
+                  ),
+                  Text(
+                    '湿度 ${s.humidity ?? '--'} %RH',
+                    style: theme.textTheme.h4,
+                  ),
+                  Text(
+                    _devStateNames[s.devState] ?? s.devState.name,
+                    style: theme.textTheme.small.copyWith(
+                      color: Colors.lightBlue,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              flex: 3,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (final column in statusRows)
+                    Expanded(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          for (final row in column)
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(row.$1, style: theme.textTheme.small),
+                                Text(
+                                  row.$2,
+                                  style: theme.textTheme.small.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
             ),
           ],
         ),
