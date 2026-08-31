@@ -161,7 +161,49 @@ void main() {
     expect(payloadLen, first.length - 8);
   });
 
-  test('decodes a broadcast frame into a snapshot', () async {
+  test('decodes a real broadcast.periodInfo frame into a snapshot', () async {
+    transport.emit(
+      _frame(
+        0x1001,
+        jsonEncode({
+          'broadcast': {
+            'periodInfo': {
+              'devState': 'SETTING',
+              'feedingRpm': 50,
+              'grindRpm': 750,
+              'bladeGap': 250,
+              'humidity': 35,
+              'totalGrinds': 26,
+              'cupDetect': true,
+              'autoStop': true,
+              'fastClean': true,
+              'brightness': 4,
+              'standbySec': 480,
+              'netState': 'CONNECTED',
+              'selectPreset': -1,
+            },
+          },
+        }),
+      ),
+    );
+    await Future<void>.delayed(Duration.zero);
+    final s = snapshots.single;
+    expect(s.devState, GrinderDevState.setting);
+    expect(s.feedingRpm, 50);
+    expect(s.grindRpm, 750);
+    expect(s.bladeGap, 250);
+    expect(s.humidity, 35);
+    expect(s.totalGrinds, 26);
+    expect(s.cupDetect, isTrue);
+    expect(s.autoStop, isTrue);
+    expect(s.fastClean, isTrue);
+    expect(s.brightness, 4);
+    expect(s.standbySec, 480);
+    expect(s.netState, 'CONNECTED');
+    expect(s.selectedPresetIndex, -1);
+  });
+
+  test('decodes a legacy flat broadcast frame into a snapshot', () async {
     transport.emit(
       _frame(
         0x1001,
