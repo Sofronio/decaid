@@ -338,6 +338,10 @@ class BookooGrinder implements Grinder {
       _mergeBroadcast(decoded);
     }
     _streamController.add(_snapshot());
+    _log.info(
+      'Snapshot: ${_devState.name} rpm=$_grindRpm feeding=$_feedingRpm '
+      'gap=$_bladeGap presets=${_presets.length} sections=${_grindSections.length}',
+    );
   }
 
   void _handleResponse(Map<String, dynamic> decoded) {

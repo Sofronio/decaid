@@ -375,6 +375,30 @@ void main() {
       expect(device, isA<BookooScale>());
     });
 
+    test('BOOKOO MT80 matches the grinder, not the scale', () async {
+      final device = await DeviceMatcher.match(
+        transport: mockTransport,
+        advertisedName: 'BOOKOO MT80',
+      );
+
+      expect(device, isA<BookooGrinder>());
+    });
+
+    test('MOTTO80 BLE matches the grinder', () async {
+      final device = await DeviceMatcher.match(
+        transport: mockTransport,
+        advertisedName: 'MOTTO80 BLE',
+      );
+
+      expect(device, isA<BookooGrinder>());
+    });
+
+    test('serviceUuidsFor grinder contains the MT80 service', () {
+      final services = DeviceMatcher.serviceUuidsFor(DeviceType.grinder);
+
+      expect(services, contains('4d543830-0001-4b80-8f00-424f4f4b4f4f'));
+    });
+
     test('returns null for unknown name', () async {
       final device = await DeviceMatcher.match(
         transport: mockTransport,

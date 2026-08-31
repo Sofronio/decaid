@@ -100,9 +100,11 @@ class DeviceMatcher {
     if (nameLower.contains('atomheart') || nameLower.contains('eclair')) {
       return DeviceImplementation.atomheartScale;
     }
-    if (nameLower.contains('bookoo')) return DeviceImplementation.bookooScale;
-    if (nameLower.contains('motto80')) {
+    if (nameLower.contains('motto80') || nameLower.contains('mt80')) {
       return DeviceImplementation.bookooGrinder;
+    }
+    if (nameLower.contains('bookoo') && !nameLower.contains('mt80')) {
+      return DeviceImplementation.bookooScale;
     }
     if (nameLower.contains('decent temp')) {
       return DeviceImplementation.decentTemp;
@@ -174,11 +176,11 @@ class DeviceMatcher {
     if (nameLower.contains('atomheart') || nameLower.contains('eclair')) {
       return AtomheartScale(transport: transport);
     }
-    if (nameLower.contains('bookoo')) {
-      return BookooScale(transport: transport);
-    }
-    if (nameLower.contains('motto80')) {
+    if (nameLower.contains('motto80') || nameLower.contains('mt80')) {
       return BookooGrinder(transport: transport);
+    }
+    if (nameLower.contains('bookoo') && !nameLower.contains('mt80')) {
+      return BookooScale(transport: transport);
     }
     if (nameLower.contains('decent temp')) {
       return DecentTemp(transport: transport);
