@@ -459,7 +459,8 @@ class BookooGrinder implements Grinder {
         : decoded;
     _feedingRpm = _asInt(source['feedingRpm']) ?? _feedingRpm;
     _grindRpm = _asInt(source['grindRpm']) ?? _grindRpm;
-    _grindSetting = _asInt(source['grindSetting']) ?? _grindSetting;
+    _grindSetting =
+        _asInt(source['bladeGap']) ?? _asInt(source['grindSetting']) ?? _grindSetting;
     _humidity = _asInt(source['humidity']) ?? _humidity;
     _totalGrinds = _asInt(source['totalGrinds']) ?? _totalGrinds;
     _cupDetect = _asBool(source['cupDetect']) ?? _cupDetect;
