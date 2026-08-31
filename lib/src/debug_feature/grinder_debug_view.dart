@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:reaprime/src/models/device/device.dart' as dev;
 import 'package:reaprime/src/models/device/grinder.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
@@ -14,7 +15,7 @@ const _devStateNames = {
 
 const _numSettings = [
   ('feedingRpm', '下豆速度', 0, 65, 5),
-  ('grindRpm', '刀盘转速', 0, 1050, 50),
+  ('grindRpm', '刀盘转速', 500, 1500, 50),
   ('brightness', '亮度', 0, 10, 1),
   ('standbySec', '熄屏秒', 0, 900, 30),
   ('bladeGap', '研磨度', 0, 1000, 5),
@@ -42,11 +43,17 @@ class _GrinderDebugViewState extends State<GrinderDebugView> {
   StreamSubscription<GrinderLogEntry>? _logSub;
   final Map<String, Timer> _debTimers = {};
   GrinderSnapshot? _last;
+  bool _connected = false;
 
   @override
   void initState() {
     super.initState();
     widget.grinder.onConnect();
+    widget.grinder.connectionState.listen((state) {
+      if (mounted) {
+        setState(() => _connected = state == dev.ConnectionState.connected);
+      }
+    });
     _logSub = widget.grinder.logStream.listen((entry) {
       switch (entry.kind) {
         case GrinderLogKind.send:
@@ -163,7 +170,7 @@ class _GrinderDebugViewState extends State<GrinderDebugView> {
 
   Widget _buildMockDisplay(ShadThemeData theme, GrinderSnapshot s) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
         color: theme.colorScheme.mutedForeground.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(12),
@@ -171,25 +178,20 @@ class _GrinderDebugViewState extends State<GrinderDebugView> {
       ),
       child: Row(
         children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                s.bladeGap?.toString() ?? '--',
-                style: theme.textTheme.h1.copyWith(fontWeight: FontWeight.w700),
-              ),
-              Text('μm 研磨度', style: theme.textTheme.muted),
-            ],
+          Text(
+            s.bladeGap?.toString() ?? '--',
+            style: theme.textTheme.h1.copyWith(fontWeight: FontWeight.w700),
           ),
-          const SizedBox(width: 32),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('下豆 ${s.feedingRpm ?? '--'} RPM', style: theme.textTheme.h4),
-              Text('转速 ${s.grindRpm ?? '--'} RPM', style: theme.textTheme.h4),
-              Text('湿度 ${s.humidity ?? '--'} %RH', style: theme.textTheme.h4),
-            ],
-          ),
+          Text(' μm', style: theme.textTheme.muted),
+          const SizedBox(width: 24),
+          Text('下豆 ${s.feedingRpm ?? '--'}', style: theme.textTheme.h4),
+          Text(' RPM', style: theme.textTheme.muted),
+          const SizedBox(width: 24),
+          Text('转速 ${s.grindRpm ?? '--'}', style: theme.textTheme.h4),
+          Text(' RPM', style: theme.textTheme.muted),
+          const SizedBox(width: 24),
+          Text('湿度 ${s.humidity ?? '--'}', style: theme.textTheme.h4),
+          Text(' %RH', style: theme.textTheme.muted),
           const Spacer(),
           Text(
             _devStateNames[s.devState] ?? s.devState.name,
@@ -201,22 +203,20 @@ class _GrinderDebugViewState extends State<GrinderDebugView> {
   }
 
   Widget _buildStatusTable(ShadThemeData theme, GrinderSnapshot s) {
-    final rows = <(String, String?)>[
-      ('下豆速度', s.feedingRpm?.toString()),
-      ('刀盘转速', s.grindRpm?.toString()),
-      ('研磨度', s.bladeGap?.toString()),
-      ('湿度', s.humidity?.toString()),
-      ('累计研磨', s.totalGrinds?.toString()),
-      ('杯检', s.cupDetect?.toString()),
-      ('自动停止', s.autoStop?.toString()),
-      ('强力清粉', s.fastClean?.toString()),
-      ('亮度', s.brightness?.toString()),
-      ('熄屏秒', s.standbySec?.toString()),
-      ('网络', s.netState),
-      ('WiFi', s.wifiName),
-      ('序列号', s.snCode),
-      ('开机原因', s.resetReason),
-      ('固件版本', s.releaseVer),
+    String boolText(bool? v) => v == null ? '—' : (v ? '开' : '关');
+    final rows = <(String, String)>[
+      ('杯检', boolText(s.cupDetect)),
+      ('自动停止', boolText(s.autoStop)),
+      ('强力清粉', boolText(s.fastClean)),
+      ('WiFi', s.wifiName ?? '—'),
+      ('连接状态', _connected ? '已连接' : '未连接'),
+      ('累计研磨', s.totalGrinds?.toString() ?? '—'),
+      ('亮度', s.brightness?.toString() ?? '—'),
+      ('熄屏秒', s.standbySec?.toString() ?? '—'),
+      ('网络', s.netState ?? '—'),
+      ('序列号', s.snCode ?? '—'),
+      ('开机原因', s.resetReason ?? '—'),
+      ('固件版本', s.releaseVer ?? '—'),
     ];
     return Card(
       child: Padding(
@@ -226,17 +226,21 @@ class _GrinderDebugViewState extends State<GrinderDebugView> {
           children: [
             Text('实时状态 (约200ms/条)', style: theme.textTheme.h3),
             const SizedBox(height: 8),
-            ...rows.map(
-              (r) => Padding(
-                padding: const EdgeInsets.symmetric(vertical: 2),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(r.$1, style: theme.textTheme.muted),
-                    Text(r.$2 ?? '—', style: theme.textTheme.h4),
-                  ],
-                ),
-              ),
+            GridView.count(
+              crossAxisCount: 3,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              childAspectRatio: 2.6,
+              children: [
+                for (final row in rows)
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(row.$1, style: theme.textTheme.muted),
+                      Text(row.$2, style: theme.textTheme.h4),
+                    ],
+                  ),
+              ],
             ),
           ],
         ),
@@ -366,12 +370,12 @@ class _GrinderDebugViewState extends State<GrinderDebugView> {
   }
 
   Widget _buildCommands(ShadThemeData theme) {
-    final commands = <(String, Future<void> Function())>[
-      ('握手 appHello', widget.grinder.onConnect),
-      ('查询研磨段', widget.grinder.querySections),
-      ('查询预设', widget.grinder.queryPresets),
-      ('开始研磨', widget.grinder.start),
-      ('停止研磨', widget.grinder.stop),
+    final commands = <(String, Future<void> Function(), bool disabled)>[
+      ('握手 appHello', widget.grinder.onConnect, false),
+      ('查询研磨段', widget.grinder.querySections, false),
+      ('查询预设', widget.grinder.queryPresets, false),
+      ('开始研磨 (尚未启用)', widget.grinder.start, true),
+      ('停止研磨 (尚未启用)', widget.grinder.stop, true),
     ];
     return Card(
       child: Padding(
@@ -388,8 +392,8 @@ class _GrinderDebugViewState extends State<GrinderDebugView> {
                 for (final command in commands)
                   ShadButton(
                     size: ShadButtonSize.sm,
+                    onPressed: command.$3 ? null : () => command.$2(),
                     child: Text(command.$1),
-                    onPressed: () => command.$2(),
                   ),
               ],
             ),
@@ -538,7 +542,10 @@ class _NumericSettingRowState extends State<_NumericSettingRow> {
                   max: widget.max.toDouble(),
                   divisions: ((widget.max - widget.min) / widget.step).round(),
                   onChanged: (v) {
-                    setState(() => _draggingValue = v);
+                    setState(() {
+                      _draggingValue = v;
+                      _controller.text = v.toStringAsFixed(0);
+                    });
                     widget.onChanged(v);
                   },
                   onChangeEnd: (v) {
