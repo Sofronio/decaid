@@ -1,13 +1,13 @@
 import 'dart:async';
-import 'dart:ui' show PlatformDispatcher;
 
 import 'package:flutter/material.dart';
 import 'package:reaprime/src/models/device/device.dart' as dev;
 import 'package:reaprime/src/models/device/grinder.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
-String _t(String en, String zh) =>
-    PlatformDispatcher.instance.locale.languageCode == 'zh' ? zh : en;
+String _grinderLang = 'en';
+
+String _t(String en, String zh) => _grinderLang == 'zh' ? zh : en;
 
 String _devStateName(GrinderDevState state) {
   return switch (state) {
@@ -249,7 +249,39 @@ class _GrinderDebugViewState extends State<GrinderDebugView> {
             _devStateName(s.devState),
             style: theme.textTheme.h4.copyWith(color: Colors.lightBlue),
           ),
+          const SizedBox(width: 12),
+          _langButton('English', 'en'),
+          const SizedBox(width: 4),
+          _langButton('中文', 'zh'),
         ],
+      ),
+    );
+  }
+
+  Widget _langButton(String label, String lang) {
+    final selected = _grinderLang == lang;
+    return GestureDetector(
+      onTap: () {
+        if (_grinderLang == lang) return;
+        setState(() => _grinderLang = lang);
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+          color: selected ? const Color(0xFF1F6FEB) : Colors.transparent,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(
+            color: selected ? const Color(0xFF1F6FEB) : Colors.grey.shade500,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+            color: selected ? Colors.white : Colors.grey.shade400,
+          ),
+        ),
       ),
     );
   }
