@@ -1130,6 +1130,8 @@ class ConnectionManager {
       currentStatus.copyWith(foundMachines: machines, foundScales: scales),
     );
 
+    await _tryConnectPreferredGrinder(scanRun.grinders);
+
     if (_machineConnected) {
       _log.fine('Machine connected, proceeding to scale phase');
       await _runScalePhase(
@@ -1755,6 +1757,30 @@ class ConnectionManager {
       return Future.value(const ConnectionResult.conflict());
     }
     return _trackConnectionWork(() => _connectGrinder(grinder));
+  }
+
+  Future<void> _tryConnectPreferredGrinder(List<Grinder> grinders) async {
+    final preferredGrinderId = settingsController.preferredGrinderId;
+    if (preferredGrinderId == null || grinders.isEmpty) return;
+    if (grinderController.lastConnectedDeviceId == preferredGrinderId &&
+        grinderController.currentConnectionState ==
+            ConnectionState.connected) {
+      return;
+    }
+    final match = grinders
+        .where((grinder) => grinder.deviceId == preferredGrinderId)
+        .firstOrNull;
+    if (match == null) {
+      _log.fine(
+        'Preferred grinder $preferredGrinderId not found in scan results',
+      );
+      return;
+    }
+    _log.fine('Connecting preferred grinder $preferredGrinderId');
+    final result = await connectGrinder(match);
+    if (!result.success) {
+      _log.warning('Preferred grinder connect failed: ${result.outcome.name}');
+    }
   }
 
   Future<ConnectionResult> _connectGrinder(Grinder grinder) async {
