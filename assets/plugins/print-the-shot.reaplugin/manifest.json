@@ -2,7 +2,7 @@
   "id": "print-the-shot.reaplugin",
   "author": "Sofronio Chen",
   "name": "Print The Shot",
-  "description": "Serves a page that transforms finished shots into the TCL print format and uploads them to a local print server (e.g. a Raspberry Pi running the PrintTheShot server). Keep the page open while pulling shots.",
+  "description": "Uploads finished shots in TCL print format to a local print server (DecentEspressoPrintTheShot-beta). Shots are uploaded automatically when they finish; the page adds shot browsing and manual printing.",
   "version": "1.3.0",
   "apiVersion": 1,
   "permissions": ["log", "api", "emit", "events.shots"],
