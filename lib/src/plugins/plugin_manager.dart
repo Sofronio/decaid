@@ -9,6 +9,7 @@ import 'package:logging/logging.dart';
 import 'plugin_manifest.dart';
 import 'plugin_decent_proxy_bridge.dart';
 import 'plugin_runtime.dart';
+import 'plugin_transport_service.dart';
 import 'plugin_types.dart';
 import '../services/storage/kv_store_service.dart';
 import '../controllers/de1_controller.dart';
@@ -71,6 +72,7 @@ class PluginManager {
   final int maxFetchResponseBytes;
   final Duration pluginHttpTimeout;
   final Duration decentProxyTimeout;
+  final Duration transportCloseTimeout;
 
   De1Controller? _de1controller;
   StreamSubscription<De1Interface?>? _de1Subscription;
@@ -83,9 +85,11 @@ class PluginManager {
   Future<void>? _disposeFuture;
   final Map<String, int> _retiringPluginGenerations = {};
   final Map<(String, int), Set<Future<void>>> _pluginStorageOperations = {};
+  late final PluginTransportService _transportService;
 
   De1Controller? get de1Controller => _de1controller;
   PluginManagerLifecycle get lifecycle => _lifecycle;
+  int get liveTransportCount => _transportService.liveTransportCount;
   int get attachmentGeneration => _attachmentGeneration;
   int get activeSubscriptionCount =>
       (_de1Subscription == null ? 0 : 1) +
@@ -102,10 +106,21 @@ class PluginManager {
     this.pluginHttpTimeout = const Duration(seconds: 30),
     this.decentProxyTimeout = const Duration(seconds: 30),
     JavascriptRuntime? js,
+    WebSocketConnector? connectWebSocket,
+    SocketConnector? connectSocket,
+    SecureSocketConnector? connectSecureSocket,
+    this.transportCloseTimeout = const Duration(seconds: 5),
   }) : js = js ?? getJavascriptRuntime(xhr: false) {
     _decentProxyBridge = PluginDecentProxyBridge(
       decentProxyService: decentProxyService,
       log: _log,
+    );
+    _transportService = PluginTransportService(
+      eventSink: _dispatchTransportEvent,
+      connectWebSocket: connectWebSocket,
+      connectSocket: connectSocket,
+      connectSecureSocket: connectSecureSocket,
+      closeTimeout: transportCloseTimeout,
     );
     _bootstrapJs();
   }
@@ -255,6 +270,8 @@ class PluginManager {
         const __nativeMapGet = Map.prototype.get;
         const __nativeMapSet = Map.prototype.set;
         const __nativeMapDelete = Map.prototype.delete;
+        const __nativeMapClear = Map.prototype.clear;
+        const __nativeMapForEach = Map.prototype.forEach;
 
         const __pendingDecentProxyRequests = new Map();
         let __decentProxySeq = 0;
@@ -275,6 +292,14 @@ class PluginManager {
 
         function __mapDelete(map, key) {
           return __nativeReflectApply(__nativeMapDelete, map, [key]);
+        }
+
+        function __mapClear(map) {
+          return __nativeReflectApply(__nativeMapClear, map, []);
+        }
+
+        function __mapForEach(map, callback) {
+          return __nativeReflectApply(__nativeMapForEach, map, [callback]);
         }
 
         function __pendingDecentProxyByPlugin(pluginId) {
@@ -538,6 +563,81 @@ class PluginManager {
           __timers.clear();
         };
 
+        const __transportListeners = new Map();
+        const __transportPending = new Map();
+        function __sendTransportMessage(message) {
+          __nativeSendMessage("transport", __nativeJsonStringify(message));
+        }
+
+        const __frozenTransportGlobal = (name, value) => {
+          Object.defineProperty(globalThis, name, {
+            value: value,
+            writable: false,
+            configurable: false,
+            enumerable: false
+          });
+        };
+        __frozenTransportGlobal("__transportRequest", function (bridgeToken, generation, requestId, type, payload) {
+          __sendTransportMessage({
+            bridgeToken: bridgeToken,
+            generation: generation,
+            requestId: requestId,
+            type: type,
+            payload: payload
+          });
+        });
+        __frozenTransportGlobal("__transportRegister", function (requestId, entry) {
+          __mapSet(__transportPending, requestId, entry);
+        });
+        __frozenTransportGlobal("__transportSetListener", function (handle, pluginId, listener) {
+          __mapSet(__transportListeners, handle, { pluginId: pluginId, listener: listener });
+        });
+        __frozenTransportGlobal("__transportRemoveListener", function (handle) {
+          __mapDelete(__transportListeners, handle);
+        });
+        __frozenTransportGlobal("__handleTransportReply", function (msg) {
+          const pending = __mapGet(__transportPending, msg.requestId);
+          if (!pending || pending.bridgeToken !== msg.bridgeToken) return;
+          __mapDelete(__transportPending, msg.requestId);
+          if (msg.error) {
+            const error = new __NativeError(msg.error);
+            if (msg.code) error.code = msg.code;
+            pending.reject(error);
+            return;
+          }
+          pending.resolve(msg.result || {});
+        });
+        __frozenTransportGlobal("__dispatchTransportEvent", function (pluginId, handle, event) {
+          const record = __mapGet(__transportListeners, handle);
+          if (!record || record.pluginId !== pluginId || !record.listener) return;
+          try {
+            record.listener(event);
+          } catch (e) {
+            console.error("Transport listener error", pluginId, e);
+          }
+        });
+        __frozenTransportGlobal("__rejectTransportPendingForToken", function (bridgeToken, error) {
+          __mapForEach(__transportPending, (pending, requestId) => {
+            if (pending.bridgeToken !== bridgeToken) return;
+            __mapDelete(__transportPending, requestId);
+            pending.reject(new __NativeError(error));
+          });
+        });
+        __frozenTransportGlobal("__rejectAllTransportPending", function (error) {
+          __mapForEach(__transportPending, (pending) => {
+            pending.reject(new __NativeError(error));
+          });
+          __mapClear(__transportPending);
+        });
+        __frozenTransportGlobal("__clearTransportListenersForPlugin", function (pluginId) {
+          __mapForEach(__transportListeners, (record, handle) => {
+            if (record.pluginId === pluginId) __mapDelete(__transportListeners, handle);
+          });
+        });
+        __frozenTransportGlobal("__clearAllTransportListeners", function () {
+          __mapClear(__transportListeners);
+        });
+
         Object.defineProperty(globalThis, "host", {
           value: __nativeFreeze({
             log(bridgeToken, generation, message) {
@@ -676,7 +776,8 @@ class PluginManager {
                 permissionDenied: globalThis.host.permissionDenied,
                 fetch: globalThis.__fetchFor,
                 timerSet: globalThis.__timerSet,
-                timerClear: globalThis.__timerClear
+                timerClear: globalThis.__timerClear,
+                transportRequest: globalThis.__transportRequest
               }),
               writable: false,
               configurable: false,
@@ -721,6 +822,18 @@ class PluginManager {
         }
       } catch (e, st) {
         _log.warning("Invalid fetch message", e, st);
+      }
+    });
+
+    js.onMessage("transport", (raw) {
+      try {
+        final msg = raw as Map<String, dynamic>;
+        final pluginId = _pluginIdForBridgeMessage(msg, 'transport');
+        if (pluginId != null) {
+          unawaited(_handleTransportSafely(pluginId, msg));
+        }
+      } catch (e, st) {
+        _log.warning("Invalid transport message", e, st);
       }
     });
   }
@@ -782,6 +895,199 @@ class PluginManager {
       await _handleFetch(pluginId, msg);
     } catch (e, st) {
       _log.warning("Invalid fetch message", e, st);
+    }
+  }
+
+  Future<void> _handleTransportSafely(
+    String pluginId,
+    Map<String, dynamic> msg,
+  ) async {
+    await Future<void>.delayed(Duration.zero);
+    if (_lifecycle != PluginManagerLifecycle.active) return;
+    try {
+      await _handleTransportMessage(pluginId, msg);
+    } catch (e, st) {
+      _log.warning("Invalid transport message", e, st);
+    }
+  }
+
+  Future<void> _handleTransportMessage(
+    String pluginId,
+    Map<String, dynamic> msg,
+  ) async {
+    final requestId = msg['requestId'];
+    if (requestId is! String) {
+      _log.warning('Transport message from $pluginId missing requestId');
+      return;
+    }
+    final bridgeToken = msg['bridgeToken'];
+    final generation = msg['generation'] is num
+        ? (msg['generation'] as num).toInt()
+        : 0;
+    if (generation != _pluginGenerations[pluginId] ||
+        _plugins[pluginId]?.isAlive != true) {
+      _replyTransport(
+        requestId,
+        bridgeToken,
+        error: 'Plugin generation changed',
+      );
+      return;
+    }
+    final type = msg['type'];
+    final payload = msg['payload'];
+    if (payload is! Map) {
+      _replyTransport(
+        requestId,
+        bridgeToken,
+        error: 'Invalid transport message payload',
+      );
+      return;
+    }
+    try {
+      switch (type) {
+        case 'open':
+          final kind = payload['kind'];
+          final permission = switch (kind) {
+            'websocket' => PluginPermissions.networkWebsocket,
+            'tcp' => PluginPermissions.networkTcp,
+            'tls' => PluginPermissions.networkTls,
+            _ => null,
+          };
+          if (permission == null) {
+            _replyTransport(
+              requestId,
+              bridgeToken,
+              error: 'Unknown transport kind',
+            );
+            return;
+          }
+          if (!_hasPermission(pluginId, permission)) {
+            _replyTransport(
+              requestId,
+              bridgeToken,
+              error: _permissionError(pluginId, permission),
+            );
+            return;
+          }
+          final result = await _transportService.open(
+            pluginId: pluginId,
+            generation: generation,
+            options: Map<String, dynamic>.from(payload),
+          );
+          if (!_isCurrentPluginMessage(pluginId, {'generation': generation})) {
+            unawaited(
+              _transportService
+                  .close(pluginId, generation, result.handle)
+                  .catchError((Object _) {}),
+            );
+            return;
+          }
+          _replyTransport(
+            requestId,
+            bridgeToken,
+            result: {
+              'handle': result.handle,
+              if (result.protocol != null) 'protocol': result.protocol,
+            },
+          );
+        case 'send':
+          final handle = payload['handle'];
+          final sendPayload = payload['payload'];
+          if (handle is! String || sendPayload is! Map) {
+            _replyTransport(
+              requestId,
+              bridgeToken,
+              error: 'Invalid transport send message',
+            );
+            return;
+          }
+          await _transportService.send(
+            pluginId,
+            generation,
+            handle,
+            Map<String, dynamic>.from(sendPayload),
+          );
+          _replyTransport(requestId, bridgeToken, result: const {});
+        case 'close':
+          final handle = payload['handle'];
+          if (handle is! String) {
+            _replyTransport(
+              requestId,
+              bridgeToken,
+              error: 'Invalid transport close message',
+            );
+            return;
+          }
+          await _transportService.close(pluginId, generation, handle);
+          _replyTransport(requestId, bridgeToken, result: const {});
+        case 'onEvent':
+          final handle = payload['handle'];
+          if (handle is String) {
+            try {
+              _transportService.onEventRegistered(pluginId, generation, handle);
+            } on PluginTransportException {
+              _removeTransportListener(handle);
+            }
+          }
+        default:
+          _log.warning('Unknown transport message type from $pluginId: $type');
+      }
+    } on PluginTransportException catch (e) {
+      _replyTransport(requestId, bridgeToken, error: e.message, code: e.code);
+    } catch (e) {
+      _replyTransport(requestId, bridgeToken, error: e.toString());
+    }
+  }
+
+  void _replyTransport(
+    String requestId,
+    Object? bridgeToken, {
+    Map<String, dynamic>? result,
+    String? error,
+    String? code,
+  }) {
+    try {
+      js.evaluate(
+        'globalThis.__handleTransportReply('
+        '${jsonEncode({'requestId': requestId, 'bridgeToken': ?bridgeToken, 'result': result, 'error': error, 'code': code})});',
+      );
+      while (js.executePendingJob() > 0) {}
+    } catch (e, st) {
+      _log.warning('Failed to deliver transport reply', e, st);
+    }
+  }
+
+  void _dispatchTransportEvent(
+    String pluginId,
+    int generation,
+    String handle,
+    Map<String, dynamic> event,
+  ) {
+    if (_lifecycle != PluginManagerLifecycle.active) return;
+    if (_plugins[pluginId]?.isAlive != true) return;
+    if (_pluginGenerations[pluginId] != generation) return;
+    try {
+      js.evaluate(
+        'globalThis.__dispatchTransportEvent('
+        '${jsonEncode(pluginId)}, ${jsonEncode(handle)}, ${jsonEncode(event)});',
+      );
+      while (js.executePendingJob() > 0) {}
+      if (event['type'] == 'close') {
+        _removeTransportListener(handle);
+      }
+    } catch (e, st) {
+      _log.warning('Failed to dispatch transport event to $pluginId', e, st);
+    }
+  }
+
+  void _removeTransportListener(String handle) {
+    try {
+      js.evaluate(
+        'globalThis.__transportRemoveListener(${jsonEncode(handle)});',
+      );
+      while (js.executePendingJob() > 0) {}
+    } catch (e, st) {
+      _log.warning('Failed to remove transport listener', e, st);
     }
   }
 
@@ -890,6 +1196,49 @@ class PluginManager {
           ? (input, init) => pluginHostBridge.fetch(pluginBridgeToken, pluginGeneration, input, init)
           : () => rejectPermission("api");
         
+        let __transportSeq = 0;
+        const __transportNonce = Math.random().toString(36).slice(2);
+        const __transportCall = (type, payload) => {
+          return new Promise((resolve, reject) => {
+            const requestId = pluginId + "_" + pluginGeneration + "_" + __transportNonce + "_" + (++__transportSeq);
+            __transportRegister(requestId, { bridgeToken: pluginBridgeToken, resolve: resolve, reject: reject });
+            pluginHostBridge.transportRequest(pluginBridgeToken, pluginGeneration, requestId, type, payload);
+          });
+        };
+        const transport = {
+          open(options) {
+            const kind = options && options.kind;
+            if (kind === "websocket" && !${manifest.permissions.contains(PluginPermissions.networkWebsocket)}) {
+              return rejectPermission("network.websocket");
+            }
+            if (kind === "tcp" && !${manifest.permissions.contains(PluginPermissions.networkTcp)}) {
+              return rejectPermission("network.tcp");
+            }
+            if (kind === "tls" && !${manifest.permissions.contains(PluginPermissions.networkTls)}) {
+              return rejectPermission("network.tls");
+            }
+            if (kind !== "websocket" && kind !== "tcp" && kind !== "tls") {
+              return Promise.reject(new Error("transport.open: unknown transport kind"));
+            }
+            return __transportCall("open", options || {});
+          },
+          onEvent(handle, callback) {
+            if (typeof callback !== "function") {
+              throw new Error("transport.onEvent: callback must be a function");
+            }
+            __transportSetListener(handle, pluginId, callback);
+            pluginHostBridge.transportRequest(
+              pluginBridgeToken, pluginGeneration, "onEvent_" + (++__transportSeq), "onEvent", { handle: handle }
+            );
+          },
+          send(handle, payload) {
+            return __transportCall("send", { handle: handle, payload: payload });
+          },
+          close(handle) {
+            return __transportCall("close", { handle: handle });
+          }
+        };
+        
         // Create the host object for this plugin
         const host = {
           log: ${manifest.permissions.contains(PluginPermissions.log)}
@@ -919,7 +1268,8 @@ class PluginManager {
               options.body ?? null,
               options.contentType ?? null
             );
-          }
+          },
+          transport: transport
         };
         
         // Inject and evaluate the plugin code
@@ -1025,7 +1375,11 @@ class PluginManager {
         _log.warning("Error during plugin unload: $id", e, st);
       }
       try {
-        _cleanupPluginResources(id, pluginBridgeToken);
+        await _cleanupPluginResources(
+          id,
+          pluginBridgeToken,
+          retiringGeneration,
+        );
       } finally {
         await _drainPluginStorageOperations(id, retiringGeneration);
       }
@@ -1039,7 +1393,11 @@ class PluginManager {
     }
   }
 
-  void _cleanupPluginResources(String pluginId, String? pluginBridgeToken) {
+  Future<void> _cleanupPluginResources(
+    String pluginId,
+    String? pluginBridgeToken,
+    int retiringGeneration,
+  ) async {
     Object? firstError;
     StackTrace? firstStackTrace;
 
@@ -1064,10 +1422,22 @@ class PluginManager {
         globalThis.__reaprimePluginBridge.cancelForPlugin(
           ${jsonEncode(pluginId)}, "plugin unloaded"
         );
+        globalThis.__rejectTransportPendingForToken(
+          ${jsonEncode(pluginBridgeToken)}, "plugin unloaded"
+        );
+        globalThis.__clearTransportListenersForPlugin(
+          ${jsonEncode(pluginId)}
+        );
       ''');
       while (js.executePendingJob() > 0) {}
     });
     attempt(() => _cancelTimersForPlugin(pluginId, pluginBridgeToken));
+    try {
+      await _transportService.closeAllForPlugin(pluginId, retiringGeneration);
+    } catch (error, stackTrace) {
+      firstError ??= error;
+      firstStackTrace ??= stackTrace;
+    }
 
     if (firstError != null) {
       Error.throwWithStackTrace(firstError!, firstStackTrace!);
@@ -1229,10 +1599,14 @@ class PluginManager {
 
   void cancelAllOperations() {
     _ensureActive();
-    _cancelAllOperations();
+    unawaited(
+      _cancelAllOperations().catchError((Object error, StackTrace stackTrace) {
+        _log.warning('cancelAllOperations failed', error, stackTrace);
+      }),
+    );
   }
 
-  void _cancelAllOperations() {
+  Future<void> _cancelAllOperations() async {
     Object? firstError;
     StackTrace? firstStackTrace;
 
@@ -1258,6 +1632,8 @@ class PluginManager {
       js.evaluate('''
           globalThis.__cancelAllFetches("manager disposal");
           globalThis.__reaprimePluginBridge.cancelAll("manager disposal");
+          globalThis.__rejectAllTransportPending("manager disposal");
+          globalThis.__clearAllTransportListeners();
         ''');
       while (js.executePendingJob() > 0) {}
     });
@@ -1269,6 +1645,12 @@ class PluginManager {
       js.evaluate('globalThis.__cancelAllTimers();');
       while (js.executePendingJob() > 0) {}
     });
+    try {
+      await _transportService.dispose();
+    } catch (error, stackTrace) {
+      firstError ??= error;
+      firstStackTrace ??= stackTrace;
+    }
 
     if (firstError != null) {
       Error.throwWithStackTrace(firstError!, firstStackTrace!);

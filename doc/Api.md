@@ -175,6 +175,30 @@ Newly recorded shots snapshot `serialNumber`, `model`, `firmwareVersion`, and
 fields. Consumers must not infer missing capture-time identity from the machine
 that happens to be connected when a record is read.
 
+**Modification tracking.** Every shot carries `createdAt` and `updatedAt`
+(ISO-8601 UTC, always serialized with a trailing `Z`). `createdAt` is set
+when the shot enters local storage; the extraction `timestamp` is the fallback
+for legacy records that predate the field. Both fields are system-managed: a
+`PUT /api/v1/shots/:id` body containing either is rejected with 400, so
+clients cannot spoof revision metadata. `updatedAt` advances only when shot
+*content* changes: `PUT /api/v1/shots/:id` bumps it iff the merged record
+differs outside the bookkeeping keys. The bookkeeping keys are
+`uploaded_to_decent`, `decent_upload_rejected`, and `visualizerId` inside
+`annotations.extras` (the reserved scratch space for plugin sync state).
+Writes confined to those keys persist without touching `updatedAt`, so
+consumers can reconcile edits by comparing `updatedAt` against their own sync
+marker without feedback loops.
+An `extras` map emptied by that exclusion compares equal to no `extras`, and
+an `annotations` map emptied by it compares equal to no `annotations`, so the
+first-ever sync marker on a clean shot does not dirty it. All other `extras`
+keys count as content. `measurements` is not editable through this endpoint:
+a PUT body containing it is rejected with 400. Sync import with
+`onConflict: overwrite` replaces the whole record, so its comparison
+includes `measurements` (which overwrite can change, unlike PUT): the
+existing `createdAt` is preserved, and `updatedAt` advances whenever the
+imported record differs from the stored one, so a no-op re-import cannot
+move a consumer's cursor backwards.
+
 ### Steams
 
 Recorded milk-steaming sessions. Each record is opened when the machine
@@ -370,6 +394,44 @@ same request prevent all fields from being stored (validation is atomic).
 | GET | `/api/v1/sensors` | List connected sensors | `sensors_handler.dart` |
 | GET | `/api/v1/sensors/:id` | Get sensor manifest | |
 | POST | `/api/v1/sensors/:id/execute` | Execute sensor command | |
+
+#### `Bengle EBus Tap` sensor
+
+The Bengle EBus tap (USB interface `2` of a composite Bengle, VID `0x2e8a` /
+PID `0x000a`) is exposed through the generic Sensors surface — no new REST
+path. Manifest:
+
+```json
+{
+  "name": "Bengle EBus Tap",
+  "vendor": "Decent Espresso",
+  "data": [{"key": "bytes", "type": "string", "unit": "base64"}],
+  "commands": [{"id": "write", "paramsSchema": {"bytes": "string"}}]
+}
+```
+
+`GET /api/v1/sensors` lists the tap under its stable ID
+`usb-2e8a-a-<serial>-if02`. Each frame on `/ws/v1/sensors/<id>/snapshot` is one
+serial read chunk:
+
+```json
+{"timestamp": "2026-08-31T12:34:56.789Z", "bytes": "tp4..."}
+```
+
+`bytes` is standard base64; concatenating decoded chunks reproduces the exact
+serial byte stream. Chunk boundaries carry no protocol meaning.
+
+Raw write base64-decodes `bytes`, writes exactly those bytes to the tap, and
+returns the byte count written:
+
+```text
+POST /api/v1/sensors/usb-2e8a-a-<serial>-if02/execute
+{"commandId": "write", "params": {"bytes": "AO4A"}}
+→ {"status": "ok", "result": {"bytesWritten": 3}}
+```
+
+Malformed or missing base64 is rejected before any write. The tap is
+single-owner: no other reader may hold the port while Decaid owns it.
 
 ### Key-Value Store
 

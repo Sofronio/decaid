@@ -20,5 +20,6 @@ enum DeviceImplementation {
   difluidR2Sensor,
   debugPort,
   sensorBasket,
+  bengleDebugPort,
   timemoreDot,
 }
